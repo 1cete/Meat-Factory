@@ -1,0 +1,206 @@
+import random
+import os
+import time
+import math
+
+class Zaidejas:
+    def __init__(self, vardas="Zaidejas"):
+        self.vardas = vardas
+        self.pinigai = 50
+        self.mesa = 50  # Pradinis mėsos kiekis (kg) - pakeista į 50 kg
+        self.pakuotes = 10  # Pakuočių pradinis kiekis
+        self.uzsakymai = []
+        self.masina_sugedo = False
+        self.isspresti_uzdaviniai = 0  # Skaičiuoja, kiek uždavinių žaidėjas išsprendė
+
+class Uzsakymas:
+    def __init__(self):
+        self.kiekis = random.randint(5, 15)  # Užsakymo kiekis
+        self.pelnas = self.kiekis * 10       # Pelno dydis
+
+def parodyti_busena(zaidejas):
+    print(f"\n{zaidejas.vardas} būsena:")
+    print(f"Pinigai: {zaidejas.pinigai}€")
+    print(f"Mėsa: {zaidejas.mesa} kg, Pakuotės: {zaidejas.pakuotes}")
+    if zaidejas.uzsakymai:
+        print("Užsakymai:")
+        for i, u in enumerate(zaidejas.uzsakymai):  # Duoda indeksa ir verte
+            print(f"{i+1}. Kiekis: {u.kiekis}, Pelnas: {u.pelnas}€")
+    else:
+        print("Šiuo metu nėra užsakymų.")
+
+def rodyti_pavadinima():
+    pavadinimas = "UAB ŠLAPIANKA"
+    plotis = 80  # Terminalo plotis simboliais
+    aukstis = 20  # Terminalo aukštis simboliais
+    pavadinimo_ilgis = len(pavadinimas)
+
+    t = 0  # Laiko kintamasis animacijai
+    while True:
+        os.system('clear')  # Išvalo terminalą
+
+        # Skaičiuojame teksto poziciją vertikaliai ir horizontaliai
+        vertikali_padetis = int((math.sin(t) + 1) * (aukstis // 4))  # Tarp 0 ir aukstis/2
+        horizontali_padetis = int((t * 2) % (plotis + pavadinimo_ilgis)) - pavadinimo_ilgis
+
+        # Atspausdiname tuščias eilutes iki vertikalios pozicijos
+        print("\n" * vertikali_padetis, end="")
+
+        # Atspausdiname pavadinimą horizontalioje pozicijoje
+        if horizontali_padetis >= 0:
+            print(" " * horizontali_padetis + pavadinimas)
+
+        time.sleep(0.1)  # Pauzė tarp kadrų
+        t += 0.2  # Judame laike į priekį
+
+        # Tikriname, ar paspaustas Enter mygtukas
+        try:
+            import sys, select
+            if select.select([sys.stdin], [], [], 0)[0]:
+                break
+        except KeyboardInterrupt:
+            break  # Jei paspaustas Ctrl+C, išeiname iš animacijos
+
+def gaminti(zaidejas):
+    if zaidejas.mesa >= 10 and zaidejas.pakuotes >= 1:
+        zaidejas.mesa -= 10
+        zaidejas.pakuotes -= 1
+        print("Mašina įjungta...")
+        time.sleep(2)
+        print("Gaminti...")
+
+        # Mašina sugenda, nes nesumokėti mokesčiai už elektrą
+        zaidejas.masina_sugedo = True
+        print("Mašina sugenda! Nesumokėti mokesčiai už elektrą.")
+        
+        if sprendziami_uzdaviniai(zaidejas):
+            print("Mašina pataisyta! Galite tęsti darbą.")
+            print("Pagamintas mėsos produktas!")
+            # Po pataisymo gaminame mėsos produktą
+            zaidejas.pinigai += 20  # Už mėsos produktą uždirbama pinigų
+        else:
+            print("Mašina sprogo, fabrikas užsidegė, žuvo jūsų darbuotojai.")
+            print("Jūs ne tik skolingas mokesčių inspekcijai, bet ir darbuotojų šeimoms.")
+            exit()
+    else:
+        print("Nepakanka resursų gamybai!")
+
+def pirkti_resursus(zaidejas):
+    print("\nKą norite pirkti?")
+    print("1. Mėsa iš ūkininko Antano (10 kg už 10€)")
+    print("2. Pakuotės (1 vnt už 5€)")
+    pasirinkimas = int(input("Pasirinkite: "))
+
+    if pasirinkimas == 1:
+        if zaidejas.pinigai >= 10:
+            zaidejas.pinigai -= 10
+            zaidejas.mesa += 10
+            print("Nupirkote 10 kg mėsos iš ūkininko Antano!")
+            print("\nAntanas: \n   Perduok linkėjimus šeimai!\n")
+        else:
+            print("Nepakanka pinigų mėsai.")
+    elif pasirinkimas == 2:
+        if zaidejas.pinigai >= 5:
+            zaidejas.pinigai -= 5
+            zaidejas.pakuotes += 1
+            print("Nupirkote 1 pakuotę!")
+        else:
+            print("Nepakanka pinigų pakuotei.")
+    else:
+        print("Neteisingas pasirinkimas.")
+
+def sprendziami_uzdaviniai(zaidejas):
+    print("Sprendžiame uždavinius, kad pataisytume mašiną.")
+    atsakymai_teisingi = 0
+
+    # Pasirinkti lygį
+    print("\nPasirinkite lygį:")
+    print("1. Lygis 1")
+    print("2. Lygis 2")
+    print("3. Lygis 3")
+    lygis = int(input("Pasirinkite lygį (1-3): "))
+    
+    if lygis == 1:
+        # Lygis 1
+        for i in range(3):
+            a = random.randint(1, 10)
+            b = random.randint(1, 10)
+            atsakymas = math.factorial(a)
+            ats = input(f"Koks yra {a}! ? ")
+            if int(ats) == atsakymas:
+                print("Teisingas atsakymas!")
+                atsakymai_teisingi += 1
+            else:
+                print("Neteisingas atsakymas.")
+        
+    elif lygis == 2:
+        # Lygis 2 - Sudėtingesni matematiniai reiškiniai
+        for i in range(3):
+            a = random.randint(1, 10)
+            b = random.randint(1, 10)
+            atsakymas = a ** b
+            ats = input(f"Koks yra {a} laipsnis {b}? ")
+            if int(ats) == atsakymas:
+                print("Teisingas atsakymas!")
+                atsakymai_teisingi += 1
+            else:
+                print("Neteisingas atsakymas.")
+                
+    elif lygis == 3:
+        # Lygis 3 - Dar sunkesni matematiniai reiškiniai
+        for i in range(3):
+            a = random.randint(1, 20)
+            b = random.randint(1, 20)
+            atsakymas = math.factorial(a + b)
+            ats = input(f"Koks yra ({a}+{b})! ? ")
+            if int(ats) == atsakymas:
+                print("Teisingas atsakymas!")
+                atsakymai_teisingi += 1
+            else:
+                print("Neteisingas atsakymas.")
+    
+    # Patikriname, ar buvo atsakyta teisingai į pakankamai uždavinių
+    if atsakymai_teisingi >= 3:
+        return True
+    else:
+        return False
+
+def zaisti():
+    rodyti_pavadinima()
+    zaidejas = Zaidejas()
+    while True:
+        # Rodome būseną ir meniu tik vieną kartą per ciklą
+        os.system('clear')  # Išvalo terminalą
+        parodyti_busena(zaidejas)
+
+        print("\nPasirinkite veiksmą:")
+        print("1. Gaminti mėsos produktą")
+        print("2. Parduotuves")
+        print("3. Naujas užsakymas")
+        print("4. Vykdyti užsakymą")
+        print("0. Baigti žaidimą")
+
+        try:
+            pasirinkimas = input("Pasirinkite: ").strip()
+            if pasirinkimas == "":
+                print("Įveskite skaičių nuo 0 iki 4.")
+                continue
+            pasirinkimas = int(pasirinkimas)
+
+            if pasirinkimas == 1:
+                gaminti(zaidejas)
+            elif pasirinkimas == 2:
+                pirkti_resursus(zaidejas)
+            elif pasirinkimas == 3:
+                naujas_uzsakymas(zaidejas)
+            elif pasirinkimas == 4:
+                vykdyti_uzsakymą(zaidejas)
+            elif pasirinkimas == 0:
+                print("Ačiū už žaidimą!")
+                break
+            else:
+                print("Neteisingas pasirinkimas.")
+        except ValueError:
+            print("Įveskite teisingą pasirinkimą!")
+
+zaisti()
