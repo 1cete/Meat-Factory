@@ -11,7 +11,6 @@ class Zaidejas:
         self.mesa = 50  # Pradinis mėsos kiekis (kg)
         self.pakuotes = 5  # Pakuotės pradinis kiekis
         self.uzsakymai = []  # Užsakymai
-        self.masina_sugedo = False  # Ar mašina sugedo
         self.reali_praejo_laikas = 0  # Laiko skaičiavimas sekundėmis, kai reikia pridėti delspinigius
 
 class Uzsakymas:
