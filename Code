@@ -1,17 +1,14 @@
 import random
 import os
 import time
-import math
 
 class Zaidejas:
     def __init__(self, vardas="Zaidejas"):
         self.vardas = vardas
         self.pinigai = 50
-        self.mesa = 50  # Pradinis mėsos kiekis (kg) - pakeista į 50 kg
+        self.mesa = 50  # Pradinis mėsos kiekis (kg)
         self.pakuotes = 10  # Pakuočių pradinis kiekis
         self.uzsakymai = []
-        self.masina_sugedo = False
-        self.isspresti_uzdaviniai = 0  # Skaičiuoja, kiek uždavinių žaidėjas išsprendė
 
 class Uzsakymas:
     def __init__(self):
@@ -69,19 +66,8 @@ def gaminti(zaidejas):
         time.sleep(2)
         print("Gaminti...")
 
-        # Mašina sugenda, nes nesumokėti mokesčiai už elektrą
-        zaidejas.masina_sugedo = True
-        print("Mašina sugenda! Nesumokėti mokesčiai už elektrą.")
-        
-        if sprendziami_uzdaviniai(zaidejas):
-            print("Mašina pataisyta! Galite tęsti darbą.")
-            print("Pagamintas mėsos produktas!")
-            # Po pataisymo gaminame mėsos produktą
-            zaidejas.pinigai += 20  # Už mėsos produktą uždirbama pinigų
-        else:
-            print("Mašina sprogo, fabrikas užsidegė, žuvo jūsų darbuotojai.")
-            print("Jūs ne tik skolingas mokesčių inspekcijai, bet ir darbuotojų šeimoms.")
-            exit()
+        print("Pagamintas mėsos produktas!")
+        zaidejas.pinigai += 20  # Už mėsos produktą uždirbama pinigų
     else:
         print("Nepakanka resursų gamybai!")
 
@@ -108,62 +94,6 @@ def pirkti_resursus(zaidejas):
             print("Nepakanka pinigų pakuotei.")
     else:
         print("Neteisingas pasirinkimas.")
-
-def sprendziami_uzdaviniai(zaidejas):
-    print("Sprendžiame uždavinius, kad pataisytume mašiną.")
-    atsakymai_teisingi = 0
-
-    # Pasirinkti lygį
-    print("\nPasirinkite lygį:")
-    print("1. Lygis 1")
-    print("2. Lygis 2")
-    print("3. Lygis 3")
-    lygis = int(input("Pasirinkite lygį (1-3): "))
-    
-    if lygis == 1:
-        # Lygis 1
-        for i in range(3):
-            a = random.randint(1, 10)
-            b = random.randint(1, 10)
-            atsakymas = math.factorial(a)
-            ats = input(f"Koks yra {a}! ? ")
-            if int(ats) == atsakymas:
-                print("Teisingas atsakymas!")
-                atsakymai_teisingi += 1
-            else:
-                print("Neteisingas atsakymas.")
-        
-    elif lygis == 2:
-        # Lygis 2 - Sudėtingesni matematiniai reiškiniai
-        for i in range(3):
-            a = random.randint(1, 10)
-            b = random.randint(1, 10)
-            atsakymas = a ** b
-            ats = input(f"Koks yra {a} laipsnis {b}? ")
-            if int(ats) == atsakymas:
-                print("Teisingas atsakymas!")
-                atsakymai_teisingi += 1
-            else:
-                print("Neteisingas atsakymas.")
-                
-    elif lygis == 3:
-        # Lygis 3 - Dar sunkesni matematiniai reiškiniai
-        for i in range(3):
-            a = random.randint(1, 20)
-            b = random.randint(1, 20)
-            atsakymas = math.factorial(a + b)
-            ats = input(f"Koks yra ({a}+{b})! ? ")
-            if int(ats) == atsakymas:
-                print("Teisingas atsakymas!")
-                atsakymai_teisingi += 1
-            else:
-                print("Neteisingas atsakymas.")
-    
-    # Patikriname, ar buvo atsakyta teisingai į pakankamai uždavinių
-    if atsakymai_teisingi >= 3:
-        return True
-    else:
-        return False
 
 def zaisti():
     rodyti_pavadinima()
