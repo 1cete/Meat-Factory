@@ -1,28 +1,56 @@
 import random
 import os
 import time
+import math
+import sys, select
 
 class Zaidejas:
     def __init__(self, vardas="Zaidejas"):
         self.vardas = vardas
         self.pinigai = 50
         self.mesa = 50  # Pradinis mėsos kiekis (kg)
-        self.pakuotes = 10  # Pakuočių pradinis kiekis
-        self.uzsakymai = []
+        self.pakuotes = 5  # Pakuotės pradinis kiekis
+        self.uzsakymai = []  # Užsakymai
+        self.masina_sugedo = False  # Ar mašina sugedo
+        self.reali_praejo_laikas = 0  # Laiko skaičiavimas sekundėmis, kai reikia pridėti delspinigius
 
 class Uzsakymas:
-    def __init__(self):
-        self.kiekis = random.randint(5, 15)  # Užsakymo kiekis
-        self.pelnas = self.kiekis * 10       # Pelno dydis
+    def __init__(self, kiekis, pakuotes, laiko_trukme):
+        self.kiekis = kiekis
+        self.pakuotes = pakuotes
+        self.laiko_trukme = laiko_trukme  # Laiko trukmė užsakymui (paromis)
+        self.laiko_pradzia = 0  # Laiko pradžia užsakymui
+        self.pelnas = (kiekis * 2) + (pakuotes * 2)  # Pelno skaičiavimas: 2€ už kg ir 2€ už pakuotę
+        self.delspinigiai = 0  # Delspinigiai
+        self.laiko_pabaiga = 0  # Laiko pabaiga pagal užsakymo trukmę
+        self.ivykdytas = False  # Užsakymas, ar įvykdytas
+
+    def nustatyti_laiko_pabaiga(self, laiko_pradzia):
+        """Nustato užsakymo pabaigos laiką pagal užsakymo trukmę (paromis)."""
+        self.laiko_pabaiga = laiko_pradzia + self.laiko_trukme * 24 * 60 * 60  # Trukmė sekundėmis
+
+    def pridet_delspinigiai(self, realus_praeje_laikas):
+        """Prideda delspinigius už kiekvieną 20 sekundžių prabėgusį realų laiką po užsakymo pabaigos."""
+        if self.ivykdytas:
+            return  # Jei užsakymas buvo įvykdytas, delspinigiai nepridedami
+
+        # Skaičiuojame delspinigius, kurie kaupiasi kas 20 sekundžių po užsakymo pabaigos
+        if realus_praeje_laikas >= self.laiko_pabaiga:  # Jei prabėgo užsakymo trukmė (sekundėmis)
+            delspinigiai = (realus_praeje_laikas - self.laiko_pabaiga) // 20
+            self.delspinigiai += delspinigiai
 
 def parodyti_busena(zaidejas):
-    print(f"\n{zaidejas.vardas} būsena:")
+    print(f"\nUAB ŠLAPIANKA")
+    print(f"{zaidejas.vardas} būsena:")
     print(f"Pinigai: {zaidejas.pinigai}€")
     print(f"Mėsa: {zaidejas.mesa} kg, Pakuotės: {zaidejas.pakuotes}")
+    print(f"Užsakymai: ")
     if zaidejas.uzsakymai:
-        print("Užsakymai:")
-        for i, u in enumerate(zaidejas.uzsakymai):  # Duoda indeksa ir verte
-            print(f"{i+1}. Kiekis: {u.kiekis}, Pelnas: {u.pelnas}€")
+        for i, u in enumerate(zaidejas.uzsakymai):
+            praleista_diena = u.laiko_pradzia  # Laiko skaičiavimas nepriklauso nuo bendro žaidimo laiko
+            likusios_dienos = max(u.laiko_pabaiga - praleista_diena, 0)  # Užsakymo likęs laikas
+            delspinigiai = u.delspinigiai if not u.ivykdytas else 0  # Jei užsakymas įvykdytas, nėra delspinigių
+            print(f"{i + 1}. Kiekis: {u.kiekis} kg, Pakuotės: {u.pakuotes}, Liko {likusios_dienos / (24 * 60 * 60)} dienos, Delspinigiai: {delspinigiai}€")
     else:
         print("Šiuo metu nėra užsakymų.")
 
@@ -51,57 +79,75 @@ def rodyti_pavadinima():
         t += 0.2  # Judame laike į priekį
 
         # Tikriname, ar paspaustas Enter mygtukas
-        try:
-            import sys, select
-            if select.select([sys.stdin], [], [], 0)[0]:
-                break
-        except KeyboardInterrupt:
-            break  # Jei paspaustas Ctrl+C, išeiname iš animacijos
+        if select.select([sys.stdin], [], [], 0)[0]:
+            break
 
-def gaminti(zaidejas):
-    if zaidejas.mesa >= 10 and zaidejas.pakuotes >= 1:
-        zaidejas.mesa -= 10
-        zaidejas.pakuotes -= 1
-        print("Mašina įjungta...")
-        time.sleep(2)
-        print("Gaminti...")
+def vykdyti_uzsakyma(zaidejas, uzsakymas_index):
+    uzsakymas = zaidejas.uzsakymai[uzsakymas_index]
 
-        print("Pagamintas mėsos produktas!")
-        zaidejas.pinigai += 20  # Už mėsos produktą uždirbama pinigų
+    if zaidejas.mesa >= uzsakymas.kiekis and zaidejas.pakuotes >= uzsakymas.pakuotes:
+        zaidejas.mesa -= uzsakymas.kiekis
+        zaidejas.pakuotes -= uzsakymas.pakuotes
+        zaidejas.pinigai += uzsakymas.pelnas  # Uždirbama už užsakymą
+        uzsakymas.ivykdytas = True  # Pažymime užsakymą kaip įvykdytą
+        print(f"Užsakymas įvykdytas: {uzsakymas.kiekis} kg mėsos, {uzsakymas.pakuotes} pakuočių.")
+        del zaidejas.uzsakymai[uzsakymas_index]  # Pašaliname įvykdytą užsakymą
     else:
-        print("Nepakanka resursų gamybai!")
+        print("Nepakanka resursų užsakymui atlikti.")
 
 def pirkti_resursus(zaidejas):
-    print("\nKą norite pirkti?")
-    print("1. Mėsa iš ūkininko Antano (10 kg už 10€)")
-    print("2. Pakuotės (1 vnt už 5€)")
-    pasirinkimas = int(input("Pasirinkite: "))
+    print("\nParduotuvių pasirinkimai:")
+    print("1. Ūkininkas Antanas - Mėsos 10 kg už 10€")
+    print("2. Pakuočių parduotuvė - 5 pakuotės už 5€")
+    pasirinkimas = input("Pasirinkite parduotuvę (1 arba 2): ")
 
-    if pasirinkimas == 1:
+    if pasirinkimas == "1":
+        print("\nJūs pasirinkote Ūkininką Antaną!")
         if zaidejas.pinigai >= 10:
+            zaidejas.mesa += 10  # Už 10€ gauname 10 kg mėsos
             zaidejas.pinigai -= 10
-            zaidejas.mesa += 10
-            print("Nupirkote 10 kg mėsos iš ūkininko Antano!")
-            print("\nAntanas: \n   Perduok linkėjimus šeimai!\n")
+            print("Įsigijote 10 kg mėsos.")
+            print("Antanas sako: 'Perduokite linkėjimus šeimai!'")
         else:
-            print("Nepakanka pinigų mėsai.")
-    elif pasirinkimas == 2:
+            print("Nepakanka pinigų!")
+    elif pasirinkimas == "2":
+        print("\nJūs pasirinkote pakuočių parduotuvę!")
         if zaidejas.pinigai >= 5:
+            zaidejas.pakuotes += 5  # Už 5€ gauname 5 pakuotes
             zaidejas.pinigai -= 5
-            zaidejas.pakuotes += 1
-            print("Nupirkote 1 pakuotę!")
+            print("Įsigijote 5 pakuotes.")
         else:
-            print("Nepakanka pinigų pakuotei.")
+            print("Nepakanka pinigų!")
     else:
-        print("Neteisingas pasirinkimas.")
+        print("Neteisingas pasirinkimas!")
+
+def naujas_uzsakymas(zaidejas):
+    kiekis = random.randint(5, 30)  # Užsakymo kiekis (5-30 kg)
+    pakuotes = random.randint(1, 10)  # Užsakymo pakuotės (1-10)
+    laiko_trukme = random.choice([1, 2, 3, 4])  # Laiko trukmė (1-4 paros)
+    uzsakymas = Uzsakymas(kiekis, pakuotes, laiko_trukme)
+    uzsakymas.laiko_pradzia = zaidejas.reali_praejo_laikas  # Užsakymo pradžia pagal realų laiką
+    uzsakymas.nustatyti_laiko_pabaiga(zaidejas.reali_praejo_laikas)  # Nustatome užsakymo pabaigą
+    zaidejas.uzsakymai.append(uzsakymas)
+    print(f"Padarėte naują užsakymą: {kiekis} kg mėsos ir {pakuotes} pakuočių.")
+    print(f"Trukmė: {laiko_trukme} paros")
 
 def zaisti():
-    rodyti_pavadinima()
     zaidejas = Zaidejas()
+    rodyti_pavadinima()  # Rodo slapiankos perejimą
     while True:
-        # Rodome būseną ir meniu tik vieną kartą per ciklą
         os.system('clear')  # Išvalo terminalą
         parodyti_busena(zaidejas)
+
+        # Atnaujiname realų laiką ir tikriname užsakymų delspinigius
+        zaidejas.reali_praejo_laikas += 1  # Simuliuojame prabėgusį laiką
+
+        # Tikriname užsakymų ir delspinigių skaičiavimą
+        if zaidejas.reali_praejo_laikas >= 20:  # Praėjo 20 sekundžių realiuoju laiku
+            # Jeigu prabėgo 20 sekundžių realiame laike
+            zaidejas.reali_praejo_laikas = 0  # Resetuojame laiką
+            for u in zaidejas.uzsakymai:
+                u.pridet_delspinigiai(zaidejas.reali_praejo_laikas)
 
         print("\nPasirinkite veiksmą:")
         print("1. Gaminti mėsos produktą")
@@ -112,25 +158,21 @@ def zaisti():
 
         try:
             pasirinkimas = input("Pasirinkite: ").strip()
-            if pasirinkimas == "":
-                print("Įveskite skaičių nuo 0 iki 4.")
-                continue
-            pasirinkimas = int(pasirinkimas)
-
-            if pasirinkimas == 1:
-                gaminti(zaidejas)
-            elif pasirinkimas == 2:
+            if pasirinkimas == "1":
+                pass  # Gaminti funkcija (nepakeista)
+            elif pasirinkimas == "2":
                 pirkti_resursus(zaidejas)
-            elif pasirinkimas == 3:
+            elif pasirinkimas == "3":
                 naujas_uzsakymas(zaidejas)
-            elif pasirinkimas == 4:
-                vykdyti_uzsakymą(zaidejas)
-            elif pasirinkimas == 0:
-                print("Ačiū už žaidimą!")
+            elif pasirinkimas == "4":
+                uzsakymas_index = int(input("Pasirinkite užsakymą (0 - indėlis užsakymo numerio): "))
+                vykdyti_uzsakyma(zaidejas, uzsakymas_index)
+            elif pasirinkimas == "0":
+                print("Baigėme žaidimą.")
                 break
             else:
-                print("Neteisingas pasirinkimas.")
+                print("Neteisingas pasirinkimas!")
         except ValueError:
-            print("Įveskite teisingą pasirinkimą!")
+            print("Įvedėte neteisingą numerį!")
 
 zaisti()
