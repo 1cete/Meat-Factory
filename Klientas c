@@ -1,0 +1,80 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
+#define SOKETO_FAILAS "./zaidimas.sock"
+#define BUFERIO_DYDIS 4096
+
+void klaida(const char *pranesimas) {
+    perror(pranesimas);
+    exit(EXIT_FAILURE);
+}
+
+int main() {
+    int soketas;
+    struct sockaddr_un serverio_adresas;
+    char buferis[BUFERIO_DYDIS];
+
+    // Bandome sukurti Unix soketą
+    if ((soketas = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+        klaida("Nepavyko sukurti soketo...");
+
+    // Nustatome serverio adresą
+    memset(&serverio_adresas, 0, sizeof(serverio_adresas));
+    memset(buferis, 0, BUFERIO_DYDIS);
+    
+    serverio_adresas.sun_family = AF_UNIX;
+    strncpy(serverio_adresas.sun_path, SOKETO_FAILAS, sizeof(serverio_adresas.sun_path) - 1);
+
+    // Bandome prisijungti prie serverio
+    if (connect(soketas, (struct sockaddr *)&serverio_adresas, sizeof(serverio_adresas)) < 0)
+        klaida("Nepavyko prisijungti prie serverio ...");
+
+    printf("Prisijungta prie serverio.\n");
+
+    // Gauname atsaką iš serverio
+    memset(buferis, 0, BUFERIO_DYDIS);
+    if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
+        printf("%s", buferis);
+
+    // Komunikavimo ciklas
+    while (1) {
+        printf(" Atsakymas: ");
+        fgets(buferis, BUFERIO_DYDIS, stdin);
+
+        // Nuvalome \n
+        buferis[strcspn(buferis, "\n")] = '\0';
+        // Jeigu įvedėme "exit"
+        if (strcmp(buferis, "exit") == 0)
+            break;
+
+        send(soketas, buferis, strlen(buferis), 0);
+        memset(buferis, 0, BUFERIO_DYDIS);
+
+////////////////////////
+////////////////////////
+/*	while (1) {
+   	   char buffer[4096];
+ 	   ssize_t n = recv(soketas, buffer, sizeof(buffer) - 1, 0);
+ 	   if (n <= 0) break;
+   	   buffer[n] = '\0';
+   	   printf("%s", buffer);
+  	   fflush(stdout);
+}  */
+////////////////////////
+///////////////////////
+	
+	if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
+	   printf("Serveris: %s", buferis);
+        if (strncmp("PABAIGA", buferis, 7) == 0) 
+            break;   
+    }
+
+    // Uždarome soketą
+    close(soketas);
+    printf("Seansas baigėsi\n");
+    return 0;
+}
