@@ -1,3 +1,6 @@
+reik pataisyti dar su delspinigiais nes neskaiciuoja pagal laika, su mesos produktu gamyba nes rodo too much info 
+ir uzsakymais kad rasytu pagal mesos produktus o ne kg ir pakuotes
+
 import random
 import os
 import time
@@ -10,6 +13,7 @@ class Zaidejas:
         self.pinigai = 50
         self.mesa = 50  # Pradinis mėsos kiekis (kg)
         self.pakuotes = 5  # Pakuotės pradinis kiekis
+        self.pagaminimai = []  # Pagaminti mėsos produktai
         self.uzsakymai = []  # Užsakymai
         self.reali_praejo_laikas = 0  # Laiko skaičiavimas sekundėmis, kai reikia pridėti delspinigius
 
@@ -43,13 +47,14 @@ def parodyti_busena(zaidejas):
     print(f"{zaidejas.vardas} būsena:")
     print(f"Pinigai: {zaidejas.pinigai}€")
     print(f"Mėsa: {zaidejas.mesa} kg, Pakuotės: {zaidejas.pakuotes}")
+    print(f"Pagaminti mėsos produktai: {zaidejas.pagaminimai}")
     print(f"Užsakymai: ")
     if zaidejas.uzsakymai:
         for i, u in enumerate(zaidejas.uzsakymai):
-            praleista_diena = u.laiko_pradzia  # Laiko skaičiavimas nepriklauso nuo bendro žaidimo laiko
-            likusios_dienos = max(u.laiko_pabaiga - praleista_diena, 0)  # Užsakymo likęs laikas
+            likusios_sekundes = max(u.laiko_pabaiga - zaidejas.reali_praejo_laikas, 0)
+            likusios_dienos = likusios_sekundes // (24 * 60 * 60)
             delspinigiai = u.delspinigiai if not u.ivykdytas else 0  # Jei užsakymas įvykdytas, nėra delspinigių
-            print(f"{i + 1}. Kiekis: {u.kiekis} kg, Pakuotės: {u.pakuotes}, Liko {likusios_dienos / (24 * 60 * 60)} dienos, Delspinigiai: {delspinigiai}€")
+            print(f"{i + 1}. Kiekis: {u.kiekis} kg, Pakuotės: {u.pakuotes}, Liko: {likusios_dienos} d., Delspinigiai: {delspinigiai}€")
     else:
         print("Šiuo metu nėra užsakymų.")
 
@@ -82,17 +87,20 @@ def rodyti_pavadinima():
             break
 
 def vykdyti_uzsakyma(zaidejas, uzsakymas_index):
-    uzsakymas = zaidejas.uzsakymai[uzsakymas_index]
+    try:
+        uzsakymas = zaidejas.uzsakymai[uzsakymas_index]
 
-    if zaidejas.mesa >= uzsakymas.kiekis and zaidejas.pakuotes >= uzsakymas.pakuotes:
-        zaidejas.mesa -= uzsakymas.kiekis
-        zaidejas.pakuotes -= uzsakymas.pakuotes
-        zaidejas.pinigai += uzsakymas.pelnas  # Uždirbama už užsakymą
-        uzsakymas.ivykdytas = True  # Pažymime užsakymą kaip įvykdytą
-        print(f"Užsakymas įvykdytas: {uzsakymas.kiekis} kg mėsos, {uzsakymas.pakuotes} pakuočių.")
-        del zaidejas.uzsakymai[uzsakymas_index]  # Pašaliname įvykdytą užsakymą
-    else:
-        print("Nepakanka resursų užsakymui atlikti.")
+        if zaidejas.mesa >= uzsakymas.kiekis and zaidejas.pakuotes >= uzsakymas.pakuotes:
+            zaidejas.mesa -= uzsakymas.kiekis
+            zaidejas.pakuotes -= uzsakymas.pakuotes
+            zaidejas.pinigai += uzsakymas.pelnas  # Uždirbama už užsakymą
+            uzsakymas.ivykdytas = True  # Pažymime užsakymą kaip įvykdytą
+            print(f"Užsakymas įvykdytas: {uzsakymas.kiekis} kg mėsos, {uzsakymas.pakuotes} pakuočių.")
+            del zaidejas.uzsakymai[uzsakymas_index]  # Pašaliname įvykdytą užsakymą
+        else:
+            print("Nepakanka resursų užsakymui atlikti.")
+    except IndexError:
+        print("Tokio užsakymo nėra!")
 
 def pirkti_resursus(zaidejas):
     print("\nParduotuvių pasirinkimai:")
@@ -120,6 +128,38 @@ def pirkti_resursus(zaidejas):
     else:
         print("Neteisingas pasirinkimas!")
 
+def gaminti_mesos_produktus(zaidejas):
+    print("\nMėsos produktų gamyba:")
+    print("1. Gaminame 5 kg mėsos dešrelių (reikia 5 kg mėsos ir 1 pakuotės)")
+    print("2. Gaminame 10 kg mėsos dešrelių (reikia 10 kg mėsos ir 2 pakuočių)")
+    print("3. Gaminame 20 kg mėsos dešrelių (reikia 20 kg mėsos ir 4 pakuočių)")
+    pasirinkimas = input("Pasirinkite gaminį (1, 2 arba 3): ")
+
+    if pasirinkimas in ["1", "2", "3"]:
+        kiekis_map = {"1": 5, "2": 10, "3": 20}
+        pakuotes_map = {"1": 1, "2": 2, "3": 4}
+        kiekis = kiekis_map[pasirinkimas]
+        pakuotes = pakuotes_map[pasirinkimas]
+
+        try:
+            daugiklis = int(input(f"Kiek vienetų norite gaminti? (maksimalus kiekis pagal resursus): "))
+        except ValueError:
+            print("Neteisinga įvestis! Bandykite dar kartą.")
+            return
+
+        bendras_kiekis = kiekis * daugiklis
+        bendros_pakuotes = pakuotes * daugiklis
+
+        if zaidejas.mesa >= bendras_kiekis and zaidejas.pakuotes >= bendros_pakuotes:
+            zaidejas.mesa -= bendras_kiekis
+            zaidejas.pakuotes -= bendros_pakuotes
+            zaidejas.pagaminimai.append(f"{bendras_kiekis} kg mėsos dešrelių ({daugiklis} vienetai po {kiekis} kg)")
+            print(f"Pagaminote {bendras_kiekis} kg mėsos dešrelių ({daugiklis} vienetai po {kiekis} kg).")
+        else:
+            print("Nepakanka resursų gamybai!")
+    else:
+        print("Neteisingas pasirinkimas!")
+
 def naujas_uzsakymas(zaidejas):
     kiekis = random.randint(5, 30)  # Užsakymo kiekis (5-30 kg)
     pakuotes = random.randint(1, 10)  # Užsakymo pakuotės (1-10)
@@ -141,13 +181,6 @@ def zaisti():
         # Atnaujiname realų laiką ir tikriname užsakymų delspinigius
         zaidejas.reali_praejo_laikas += 1  # Simuliuojame prabėgusį laiką
 
-        # Tikriname užsakymų ir delspinigių skaičiavimą
-        if zaidejas.reali_praejo_laikas >= 20:  # Praėjo 20 sekundžių realiuoju laiku
-            # Jeigu prabėgo 20 sekundžių realiame laike
-            zaidejas.reali_praejo_laikas = 0  # Resetuojame laiką
-            for u in zaidejas.uzsakymai:
-                u.pridet_delspinigiai(zaidejas.reali_praejo_laikas)
-
         print("\nPasirinkite veiksmą:")
         print("1. Gaminti mėsos produktą")
         print("2. Parduotuves")
@@ -158,20 +191,23 @@ def zaisti():
         try:
             pasirinkimas = input("Pasirinkite: ").strip()
             if pasirinkimas == "1":
-                pass  # Gaminti funkcija (nepakeista)
+                gaminti_mesos_produktus(zaidejas)
             elif pasirinkimas == "2":
                 pirkti_resursus(zaidejas)
             elif pasirinkimas == "3":
                 naujas_uzsakymas(zaidejas)
             elif pasirinkimas == "4":
-                uzsakymas_index = int(input("Pasirinkite užsakymą (0 - indėlis užsakymo numerio): "))
+                uzsakymas_index = int(input("Įveskite užsakymo numerį: ")) - 1
                 vykdyti_uzsakyma(zaidejas, uzsakymas_index)
             elif pasirinkimas == "0":
-                print("Baigėme žaidimą.")
+                print("Žaidimas baigtas. Ačiū, kad žaidėte!")
                 break
             else:
-                print("Neteisingas pasirinkimas!")
+                print("Neteisingas pasirinkimas! Bandykite dar kartą.")
         except ValueError:
-            print("Įvedėte neteisingą numerį!")
+            print("Įveskite teisingą skaičių!")
 
-zaisti()
+# Pradėti žaidimą
+
+if __name__ == "__main__":
+    zaisti()
