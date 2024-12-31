@@ -159,26 +159,6 @@ def naujas_uzsakymas(zaidejas):
         f"Trukmė: {laiko_trukme} paros\n"
     )
 
-def menas():
-    return f"""
-             ._     __,
-              |\\,..../'\\
-            ,'. .     `.
-           .--         '`.
-          ( `' ,          ;
-          ,`--' _,       ,'\ 
-         ,`.____            `.
-        /              `,    |
-       '                \\ ,   '
-       |                /   /`,
-       `,  .           ,` ./  |
-       ' `.  ,'        |;,'   ,@
- ______|     |      _________,_____jv______
-        `.   `.   ,'
-         ,'_,','_,
-         `'   `'
-"""
-
 ###############################################################################
 def uzsakymu_sarasas_tekstu(zaidejas):
     """
@@ -211,12 +191,26 @@ def pirkti_resursus(zaidejas, pasirinkimas):
     atsakymas += "2. Pakuočių parduotuvė - 5 pakuotės už 5€\n"
 
     if pasirinkimas == "1":
-        atsakymas += "\nJūs pasirinkote Ūkininką Antaną!\n"
+        atsakymas += "                                                         .'T'. - -'.\n"
+        atsakymas += "                                                      .'/|||||\\'. - -'.\n"
+        atsakymas += "                                                    .'/|||||||||\\'. - -'.\n"
+        atsakymas += "                                                  .'/|||||___|||||\\'. - -'.\n"
+        atsakymas += "    Jūs pasirinkote ūkininką Antaną!             //|||||||||||||||||\\\\ - - \\\n"
+        atsakymas += "                                                //|||||||||||||||||||\\\\ - - \\  /|\\   Perduok linkėjimus šeimai!!\n"
+        atsakymas += "                                               //|||||||||||||||||||||\\\\_____/\\//|\\\\               .\n"
+        atsakymas += "                                                |||||||||||||||||||||| |||||  //|\\\\                .\n"
+        atsakymas += "                         ____________::___      ||||||||||ldb||||||||| ||||| ///|\\\\\\             _/V\\_ \n"
+        atsakymas += "          _        _    /_)_)_)_)_)_)_)_)/\\     ||||| \\       // |||| ||||| ///|\\\\\\              (d_b) ,\n"
+        atsakymas += "         ( )_    _( )  /_)_)_)_)_)_)_)_)/ _\\    |||||   \\   //   |||| |||||////|\\\\\\\\           .__/Y\\_/\n"
+        atsakymas += "        (  )_)  (  )_)  | :__:    :__: |: |     |||||     \\x\\     |||| |||||////|\\\\\\\\             |I|\n"
+        atsakymas += "       (_(_ (_)(_) _)_) |  _   .-.   _ | :|     |||||   //   \\\\   |||| ||||/////|\\\\\\\\\\            / |\n"
+        atsakymas += "     ____)\_(____)_/(___|_'_'o8|'|8o'_'|:_o8o._.o8%8o_//_______\\\\_||||.o88o8&8o)/(88o.____       _| |_ \n"
+
         if zaidejas.pinigai >= 10:
             zaidejas.mesa += 10
             zaidejas.pinigai -= 10
+            atsakymas += "\n"
             atsakymas += "Įsigijote 10 kg mėsos.\n"
-            atsakymas += "Antanas sako: 'Perduokite linkėjimus šeimai!'\n"
         else:
             atsakymas += "Nepakanka pinigų!\n"
 
@@ -232,6 +226,7 @@ def pirkti_resursus(zaidejas, pasirinkimas):
         atsakymas += "Neteisingas pasirinkimas!\n"
 
     return atsakymas
+
 
 ##############################################################################
 
@@ -342,22 +337,6 @@ def suformuok_meniu(zaidejas):
     )
     uzsakymai_tekstas = "\nUŽSAKYMAI:\n" + uzsakymu_sarasas_tekstu(zaidejas)
     pranesimas2 = (
-        f"             ._     __,\n"
-        f"              |\\,..../'\\\n"
-        f"            ,'. .     `.\n"
-        f"           .--         '`.\n"
-        f"          ( `' ,          ;\n"
-        f"          ,`--' _,       ,'\ \n"
-        f"         ,`.____            `.\n"
-        f"        /              `,    |\n"
-        f"       '                \\ ,   '\n"
-        f"       |                /   /`,\n"
-        f"       `,  .           ,` ./  |\n"
-        f"       ' `.  ,'        |;,'   ,@\n"
-        f" ______|     |      _________,_____jv______\n"
-        f"        `.   `.   ,'\n"
-        f"         ,'_,','_,\n"
-        f"         `'   `'\n"
         f"\nPasirinkite veiksmą:\n"
         f"1. Gaminti mėsos produktą\n"
         f"2. Parduotuves\n"
@@ -517,3 +496,4 @@ def startuokServeri():
 
 if __name__ == "__main__":
     startuokServeri()
+
