@@ -8,6 +8,8 @@ import sys, select
 SOKETO_FAILAS = "./zaidimas.sock"
 ZAIDIMO_STATISTIKA = "./taskai.dat"
 
+
+
 ###############################################################################
 def rasykStatistika(klientas):
     failas = open(ZAIDIMO_STATISTIKA, 'a')
@@ -17,10 +19,10 @@ def rasykStatistika(klientas):
 ###############################################################################
 #ANMACIJA
 
-"""def rodyti_animacija_klientui(klientas):
+def rodyti_animacija_klientui(klientas):
     
-    Siunčiame animacijos kadrus kas ~0.1 s.
-    Tarp kadru tikriname, ar nėra komandos 'STOP_ANIM' iš kliento.
+    '''Siunčiame animacijos kadrus kas ~0.1 s.
+    Tarp kadru tikriname, ar nėra komandos 'STOP_ANIM' iš kliento.'''
 
     pavadinimas = "UAB ŠLAPIANKA"
     plotis = 80
@@ -67,10 +69,10 @@ def rasykStatistika(klientas):
         print("Klientas atjungė ryšį animacijos metu.")
     finally:
         # Svarbu: grąžiname socket į blocking režimą, jei norime toliau normaliai priiminėti duomenis
-        klientas.setblocking(True)"""
+        klientas.setblocking(True)
 
-#ANIMACIJA PABAIGA
-###############################################################################
+'''#ANIMACIJA PABAIGA
+###############################################################################'''
 
 class Klientas:
     def __init__(self, vardas):
@@ -157,7 +159,25 @@ def naujas_uzsakymas(zaidejas):
         f"Trukmė: {laiko_trukme} paros\n"
     )
 
-
+def menas():
+    return f"""
+             ._     __,
+              |\\,..../'\\
+            ,'. .     `.
+           .--         '`.
+          ( `' ,          ;
+          ,`--' _,       ,'\ 
+         ,`.____            `.
+        /              `,    |
+       '                \\ ,   '
+       |                /   /`,
+       `,  .           ,` ./  |
+       ' `.  ,'        |;,'   ,@
+ ______|     |      _________,_____jv______
+        `.   `.   ,'
+         ,'_,','_,
+         `'   `'
+"""
 
 ###############################################################################
 def uzsakymu_sarasas_tekstu(zaidejas):
@@ -302,12 +322,42 @@ def gaminti_mesos_produktus(zaidejas, komanda):
 def suformuok_meniu(zaidejas):
     pranesimas1 = (
         f"\nUAB ŠLAPIANKA\n"
+        f"\n "
+        f"         ) ) )                     ) ) )\n"\
+        f"        ( ( (                      ( ( (\n"\
+        f"      ) ) )                       ) ) )\n"\
+        f"   (~~~~~~~~~)                 (~~~~~~~~~)\n"\
+        f"    | DEŠRA |                   | DEŠRA |\n"\
+        f"    |       |                   |       |\n"\
+        f"    I      _._                  I       _._\n"\
+        f"    I    /'   `\\                I     /'   `\\\n"\
+        f"    I   |   N   |               I    |   N   |\n"\
+        f"    f   |   |~~~~~~~~~~~~~~|    f    |    |~~~~~~~~~~~~~~|\n"\
+        f"  .'    |   ||~~~~~~~~|    |  .'     |    | |~~~~~~~~|   |\n"\
+        f"/'______|___||__###___|____|/'_______|____|_|__###___|___|\n"
+        f"\n"
         f"Žaidėjo vardas: {zaidejas.vardas}\n"
         f"BŪSENA:\nPinigai: {zaidejas.pinigai}€, "
         f"Mėsa: {zaidejas.mesa} kg, pakuotės: {zaidejas.pakuotes}.\n"
     )
     uzsakymai_tekstas = "\nUŽSAKYMAI:\n" + uzsakymu_sarasas_tekstu(zaidejas)
     pranesimas2 = (
+        f"             ._     __,\n"
+        f"              |\\,..../'\\\n"
+        f"            ,'. .     `.\n"
+        f"           .--         '`.\n"
+        f"          ( `' ,          ;\n"
+        f"          ,`--' _,       ,'\ \n"
+        f"         ,`.____            `.\n"
+        f"        /              `,    |\n"
+        f"       '                \\ ,   '\n"
+        f"       |                /   /`,\n"
+        f"       `,  .           ,` ./  |\n"
+        f"       ' `.  ,'        |;,'   ,@\n"
+        f" ______|     |      _________,_____jv______\n"
+        f"        `.   `.   ,'\n"
+        f"         ,'_,','_,\n"
+        f"         `'   `'\n"
         f"\nPasirinkite veiksmą:\n"
         f"1. Gaminti mėsos produktą\n"
         f"2. Parduotuves\n"
@@ -315,10 +365,9 @@ def suformuok_meniu(zaidejas):
         f"4. Vykdyti užsakymą\n"
         f"0. Baigti žaidimą\n"
     )
-
+    
     # Surenkame viską į vieną "didžiulį" tekstą
     return pranesimas1 + uzsakymai_tekstas + pranesimas2
-
 
 ###############################################################################
 
