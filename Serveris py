@@ -316,7 +316,9 @@ def gaminti_mesos_produktus(zaidejas, komanda):
 
 def suformuok_meniu(zaidejas):
     pranesimas1 = (
-        f"\nUAB ŠLAPIANKA\n"
+        f"\n                 ---------------"
+        f"\n                | UAB ŠLAPIANKA |\n"
+        f"                 ---------------\n"
         f"\n "
         f"         ) ) )                     ) ) )\n"\
         f"        ( ( (                      ( ( (\n"\
@@ -496,4 +498,3 @@ def startuokServeri():
 
 if __name__ == "__main__":
     startuokServeri()
-
