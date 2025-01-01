@@ -215,7 +215,13 @@ def pirkti_resursus(zaidejas, pasirinkimas):
             atsakymas += "Nepakanka pinigų!\n"
 
     elif pasirinkimas == "2":
-        atsakymas += "\nJūs pasirinkote pakuočių parduotuvę!\n"
+        atsakymas += "                                         .---__----.\n" 
+        atsakymas += "                                       ;-------------.| \n"
+        atsakymas += "                                       |             ||    .--__---. \n"
+        atsakymas += " Jūs pasirinkote pakuočių parduotuvę!  |             ||  ;-----------.|\n"
+        atsakymas += "                                       |             ||  |           ||\n"
+        atsakymas += "                                       |_____________|/  |           ||\n"
+        atsakymas += "                                                         |___________|/\n"
         if zaidejas.pinigai >= 5:
             zaidejas.pakuotes += 5
             zaidejas.pinigai -= 5
