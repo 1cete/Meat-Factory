@@ -314,6 +314,7 @@ def gaminti_mesos_produktus(zaidejas, komanda):
 ##############################################################################
 # Pagrindinė (vienkartinė) informacija, kurią norime rodyti "non-stop"
 
+
 def suformuok_meniu(zaidejas):
     pranesimas1 = (
         f"\n                 ---------------"
@@ -325,13 +326,14 @@ def suformuok_meniu(zaidejas):
         f"      ) ) )                       ) ) )\n"\
         f"   (~~~~~~~~~)                 (~~~~~~~~~)\n"\
         f"    | DEŠRA |                   | DEŠRA |\n"\
-        f"    |       |                   |       |\n"\
-        f"    I      _._                  I       _._\n"\
-        f"    I    /'   `\\                I     /'   `\\\n"\
+        f"    |       |                   |       |              TAISYKLĖS:\n"\
+        f"    I      _._                  I       _._            1 diena žaidime = 30 sekundžių realiame gyvenime\n"\
+        f"    I    /'   `\\                I     /'   `\\          20sek užsakymo vėlavimas - atimamas 1Eur iš piniginės\n"\
         f"    I   |   N   |               I    |   N   |\n"\
         f"    f   |   |~~~~~~~~~~~~~~|    f    |    |~~~~~~~~~~~~~~|\n"\
-        f"  .'    |   ||~~~~~~~~|    |  .'     |    | |~~~~~~~~|   |\n"\
+        f"  .'    |   ||~~~~~~~~|    |  .'     |    | |~~~~~~~~|   |\n"
         f"/'______|___||__###___|____|/'_______|____|_|__###___|___|\n"
+        f"\n"
         f"\n"
         f"Žaidėjo vardas: {zaidejas.vardas}\n"
         f"BŪSENA:\nPinigai: {zaidejas.pinigai}€, "
