@@ -4,6 +4,7 @@ import os
 import time
 import math
 import sys, select
+import threading
 
 SOKETO_FAILAS = "./zaidimas.sock"
 ZAIDIMO_STATISTIKA = "./taskai.dat"
@@ -48,7 +49,7 @@ class Klientas:
         )
 
 class Uzsakymas:
-    def __init__(self, kiekis, pakuotes, laiko_trukme, virtos=0, vytintos=0, karstos=0, saltos=0):
+    def __init__(self, kiekis, pakuotes, laiko_trukme=1, virtos=0, vytintos=0, karstos=0, saltos=0):
         self.kiekis = kiekis
         self.pakuotes = pakuotes
         
@@ -58,27 +59,30 @@ class Uzsakymas:
         self.karstos = karstos
         self.saltos = saltos
         
-        self.laiko_trukme = laiko_trukme
+        self.laiko_trukme = laiko_trukme  # Paros skaičius
         self.laiko_pradzia = 0  
         self.delspinigiai = 0  
         self.laiko_pabaiga = 0  
         self.ivykdytas = False
         
-         # Pvz. pelnas = 2 eur už kiekvieną dešrą
+        # Pelnas: 2 eurai už kiekvieną dešrą
         total_count = virtos + vytintos + karstos + saltos
         self.pelnas = total_count * 2
 
     def nustatyti_laiko_pabaiga(self, laiko_pradzia):
-        self.laiko_pabaiga = laiko_pradzia + self.laiko_trukme*24*3600
-    
+        # 1 para = 30 s realaus laiko
+        self.laiko_pabaiga = laiko_pradzia + (self.laiko_trukme * 30)
+
     def pridet_delspinigiai(self, realus_praeje_laikas):
         if self.ivykdytas:
             return
         if realus_praeje_laikas >= self.laiko_pabaiga:
             velavimas = realus_praeje_laikas - self.laiko_pabaiga
-            # Pvz. kas 5 sek -> +3 eur
-            intervalai = velavimas // 5
-            self.delspinigiai += intervalai * 3
+            if velavimas > 0:
+                # Kiek 5 sekundžių prabėgo nuo laiko pabaigos
+                intervalai = int(velavimas // 5)
+                # Nustatome delspinigius = intervalai * 1 €
+                self.delspinigiai = intervalai * 1
 
     def __str__(self):
         return (
@@ -86,30 +90,6 @@ class Uzsakymas:
             f"šaltos={self.saltos}, delspinigiai={self.delspinigiai}, ivykdytas={self.ivykdytas})"
         )
 
-##### DELSPINIGIAI
-"""
-    def nustatyti_laiko_pabaiga(self, laiko_pradzia):
-        # laiko_trukme - paromis
-        self.laiko_pabaiga = laiko_pradzia + self.laiko_trukme * 24 * 3600
-
-    def pridet_delspinigiai(self, realus_praeje_laikas):
-        if self.ivykdytas:
-            return 
-        if realus_praeje_laikas >= self.laiko_pabaiga:
-            vėlavimas = realus_praeje_laikas - self.laiko_pabaiga
-            # pagal ankstesnę logiką (kas 20s +1 eur). 
-            # Arba kas 5s +3 eur, kaip minėjote anksčiau, pritaikykite:
-            intervalai = vėlavimas // 5
-            self.delspinigiai += intervalai * 3
-
-    def __str__(self):
-        return (
-            f"virtos={self.virtos}, vytintos={self.vytintos}, "
-            f"karstos={self.karstos}, saltos={self.saltos}, "
-            f"delspinigiai={self.delspinigiai}, ivykdytas={self.ivykdytas}"
-        )
-#####
-"""
 ###############################################################################
 
 def parodyti_uzsakymus(zaidejas):
@@ -119,7 +99,7 @@ def parodyti_uzsakymus(zaidejas):
     lines = []
     for i, u in enumerate(zaidejas.uzsakymai, start=1):
         likusios_sekundes = max(u.laiko_pabaiga - zaidejas.reali_praejo_laikas, 0)
-        likusios_dienos = likusios_sekundes // (24*3600)
+        likusios_dienos = likusios_sekundes // 30
         lines.append(
             f"{i}) virtos: {u.virtos}, vytintos: {u.vytintos}, "
             f"karštos: {u.karstos}, šaltos: {u.saltos}, "
@@ -134,8 +114,8 @@ def naujas_uzsakymas(zaidejas):
     # vietoj random(5..30) mėsos => random(0..10) virtų, etc.
     virtos = random.randint(0, 10)
     vytintos = random.randint(0, 10)
-    karstos = random.randint(0, 5)
-    saltos = random.randint(0, 5)
+    karstos = random.randint(0, 10)
+    saltos = random.randint(0, 10)
     laiko_trukme = random.choice([1,2,3,4])
 
     u = Uzsakymas(virtos, vytintos, karstos, saltos, laiko_trukme)
@@ -349,9 +329,20 @@ def suformuok_meniu(zaidejas):
 
     # Surenkame viską į vieną "didžiulį" tekstą
     return pranesimas1 + uzsakymai_tekstas + pranesimas2
-    
+
 ###############################################################################
 
+def laiko_atnaujinimas(zaidejas, interval=1):
+    while not zaidejas.masina_sugedo:
+        time.sleep(interval)
+        zaidejas.reali_praejo_laikas += interval
+        if tikrink_delspinigius(zaidejas):
+            # Siųsti žinutę klientui apie bankrotą
+            # Reikia įgyvendinti signalizavimo mechanizmą
+            zaidejas.masina_sugedo = True
+            break
+
+###############################################################################
 
 def tikrink_delspinigius(zaidejas):
     """
@@ -360,26 +351,22 @@ def tikrink_delspinigius(zaidejas):
     kas 5 realias sekundes po 'laiko_pabaiga' pridedame delspinigių.
     Jei delspinigiai > zaidejas.pinigai -> bankrotas (gražiname True ar pan.).
     """
+    total_delspinigiai = 0  # Pridedame bendrą delspinigių sumą
     for uzs in zaidejas.uzsakymai:
         if not uzs.ivykdytas:
-            # ar jau pasibaigė laikas?
             if zaidejas.reali_praejo_laikas >= uzs.laiko_pabaiga:
-                velavimas = zaidejas.reali_praejo_laikas - uzs.laiko_pabaiga
-                if velavimas > 0:
-                    intervalai = int(velavimas // 5)
-                    # pridedame intervalai eurų
-                    uzs.delspinigiai = intervalai  # arba += intervalai
-                    # tikriname, ar bankrotas
-                    if uzs.delspinigiai > zaidejas.pinigai:
-                        return True  # bankrotas
-    return False  # dar nebankrutavo
+                uzs.pridet_delspinigiai(zaidejas.reali_praejo_laikas)
+                total_delspinigiai += uzs.delspinigiai
+                if uzs.delspinigiai > zaidejas.pinigai:
+                    return True  # Bankrotas
+    return False  # Dar nebankrutavo
 
 ###############################################################################
 
 def nustatyti_laiko_pabaiga(self, laiko_pradzia):
     # laiko_trukme (pvz. 2) => 2 paros => realiai 2*30 = 60 sek
     self.laiko_pabaiga = laiko_pradzia + (self.laiko_trukme * 30)
-    
+
 
 ###############################################################################
 
@@ -396,16 +383,16 @@ def valdykKlienta(klientoSoketas):
         vardas = atsakymas.strip()
         zaidejas = Klientas(vardas)
 
-        # 2. Paleisti animaciją
-        #rodyti_animacija_klientui(klientoSoketas)
-        
-        last_tick = time.time()  # fiksuojame laiką, kai pradedame
-        # Gauti vardą, parodyti meniu, etc.
+      
+        last_tick = time.time()  # Fiksuojame laiką, kai pradedame
 
-        
         # 3. Pirmą kartą atsiunčiame meniu
         visas_meniu = suformuok_meniu(zaidejas)
         klientoSoketas.sendall(visas_meniu.encode('utf-8'))
+        
+        # Pradėkite laiko atnaujinimo thread'ą
+        laiko_thread = threading.Thread(target=laiko_atnaujinimas, args=(zaidejas,))
+        laiko_thread.start()
 
         # 4. Pradedame ciklą laukti veiksmų
         while True:
@@ -413,25 +400,30 @@ def valdykKlienta(klientoSoketas):
             if not duomenys:
                 # gauta tuščia -> nutraukti
                 break
-                
-            # (1) atnaujiname zaidejas.reali_praejo_laikas
+
+            # (1) Atnaujiname zaidejas.reali_praejo_laikas
             now = time.time()
             delta = now - last_tick
             last_tick = now
             zaidejas.reali_praejo_laikas += delta
-             
-            # (2) kviečiame tikrink_delspinigius
+
+
+            # (2) Kviečiame tikrink_delspinigius
             if tikrink_delspinigius(zaidejas):
                 klientoSoketas.sendall(b"Jus bankrutavote (delspinigiai virsijo turimus pinigus)!\n")
                 break
                 
+            if zaidejas.masina_sugedo:
+                klientoSoketas.sendall(b"Jus bankrutavote (delspinigiai virsijo turimus pinigus)!\n")
+                break
+
             komanda = duomenys.decode('utf-8').strip()
             if not komanda:
                 # Jeigu vartotojas tiesiog spaudžia Enter,
                 # praleidžiame šį žingsnį (nenutraukiame žaidimo).
                 klientoSoketas.sendall(b"Prasome ivesti komanda, o ne tuscia eilute.\n")
                 continue
-                                        
+
                 """ Ir toliau rodom meniu
                 visas_meniu = suformuok_meniu(zaidejas)
                 klientoSoketas.sendall(visas_meniu.encode('utf-8'))
@@ -461,9 +453,9 @@ def valdykKlienta(klientoSoketas):
                 cmd = ats2.decode('utf-8').strip()
                 gam_result = gaminti_desras(zaidejas, cmd)
                 klientoSoketas.sendall(gam_result.encode('utf-8'))
-                             
-                                              
-                
+
+
+
             elif komanda == "2":
                 # 2 reiškia "Parduotuves" - t.y. pirkti_resursus
                 # bet mums reikia sužinoti, ar pasirinks 1 ar 2 (Ūkininką ar pakuočių parduotuvę).
@@ -489,7 +481,7 @@ def valdykKlienta(klientoSoketas):
                 # Naujas užsakymas (keturių rūšių dešrų)
                 txt = naujas_uzsakymas(zaidejas)
                 klientoSoketas.sendall(txt.encode('utf-8'))
-                
+
 
             elif komanda == "4":
                 # Paklausti, kurį užsakymą vykdyti
@@ -506,8 +498,8 @@ def valdykKlienta(klientoSoketas):
 
                 vyk_result = vykdyti_uzsakyma(zaidejas, idx)
                 klientoSoketas.sendall(vyk_result.encode('utf-8'))
-            
-                      
+
+
             else:
                 klientoSoketas.sendall(b"Nezinoma komanda!\n")
 
