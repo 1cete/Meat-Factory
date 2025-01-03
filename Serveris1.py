@@ -49,10 +49,8 @@ class Klientas:
         )
 
 class Uzsakymas:
-    def __init__(self, kiekis, pakuotes, laiko_trukme=1, virtos=0, vytintos=0, karstos=0, saltos=0):
-        self.kiekis = kiekis
-        self.pakuotes = pakuotes
-        
+    def __init__(self, virtos=0, vytintos=0, karstos=0, saltos=0, laiko_trukme=1):
+               
         # Kiekvienos dešros kiekis
         self.virtos = virtos
         self.vytintos = vytintos
@@ -401,14 +399,8 @@ def valdykKlienta(klientoSoketas):
                 # gauta tuščia -> nutraukti
                 break
 
-            # (1) Atnaujiname zaidejas.reali_praejo_laikas
-            now = time.time()
-            delta = now - last_tick
-            last_tick = now
-            zaidejas.reali_praejo_laikas += delta
-
-
-            # (2) Kviečiame tikrink_delspinigius
+           
+            # Kviečiame tikrink_delspinigius
             if tikrink_delspinigius(zaidejas):
                 klientoSoketas.sendall(b"Jus bankrutavote (delspinigiai virsijo turimus pinigus)!\n")
                 break
