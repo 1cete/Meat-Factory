@@ -5,21 +5,20 @@ import time
 import math
 import sys, select
 import threading
+from datetime import datetime
 
 SOKETO_FAILAS = "./zaidimas.sock"
 ZAIDIMO_STATISTIKA = "./taskai.dat"
 
 
-
-###############################################################################
-def rasykStatistika(klientas):
-    failas = open(ZAIDIMO_STATISTIKA, 'a')
-    failas.write(f'{klientas}\n')
-    failas.close()
-    
 def dataLaikas(dt):
     rez = f'{dt.year}-{dt.month}-{dt.day}, {dt.hour}:{dt.minute}:{dt.second}'
     return rez
+
+###############################################################################
+def rasykStatistika(klientas):
+    with open(ZAIDIMO_STATISTIKA, 'a') as failas:
+        failas.write(f'{klientas}\n')
   
 ###############################################################################
 
@@ -33,6 +32,8 @@ class Klientas:
         self.uzsakymai = []  
         self.masina_sugedo = False
         self.reali_praejo_laikas = 0 
+        self.pradLaikas = None
+        self.pabLaikas = None 
         
         # The 4 types of sausages we have in *inventory* (starting 0).
         self.virtos = 0
@@ -42,15 +43,7 @@ class Klientas:
         
         
     def __str__(self):
-        return (
-            f"{self.vardas};"
-            f"{self.pinigai};"
-            f"{self.mesa};"
-            f"{self.pakuotes};"
-            f"{self.uzsakymai};"
-            f"{self.masina_sugedo};"
-            f"{self.reali_praejo_laikas}"
-        )
+        return f'{self.vardas};"{self.pinigai};{self.mesa};{self.pakuotes};{self.pradLaikas};{self.pabLaikas}'
 
 class Uzsakymas:
     def __init__(self, virtos=0, vytintos=0, karstos=0, saltos=0, laiko_trukme=1):
@@ -374,64 +367,46 @@ def nustatyti_laiko_pabaiga(self, laiko_pradzia):
 
 def valdykKlienta(klientoSoketas):
     try:
-        # 1. Paklausiame vardo
+        print("Naujas klientas prisijungė.")
+
+        # 1. Siunčiame pasisveikinimo pranešimą
         serverioPranesimas = "Sveiki... Koks Jūsų vardas?\n"
         klientoSoketas.sendall(serverioPranesimas.encode('utf-8'))
 
-        atsakymas = klientoSoketas.recv(4096).decode('utf-8')
+        # 2. Laukiame atsakymo iš kliento
+        atsakymas = klientoSoketas.recv(4096).decode('utf-8').strip()
+
         if not atsakymas:
             raise Exception("Nepavyko gauti atsakymo. Klientas gal atsijungė?")
+        
 
-        vardas = atsakymas.strip()
+        vardas = atsakymas
         zaidejas = Klientas(vardas)
-
-      
-        last_tick = time.time()  # Fiksuojame laiką, kai pradedame
+        zaidejas.pradLaikas = datetime.now()
+        
+        print(f"Kliento vardas nustatytas: {zaidejas.vardas}, sesijos pradžia: {zaidejas.pradLaikas}")
 
         # 3. Pirmą kartą atsiunčiame meniu
         visas_meniu = suformuok_meniu(zaidejas)
         klientoSoketas.sendall(visas_meniu.encode('utf-8'))
-        
+
         # Pradėkite laiko atnaujinimo thread'ą
         laiko_thread = threading.Thread(target=laiko_atnaujinimas, args=(zaidejas,))
         laiko_thread.start()
 
         # 4. Pradedame ciklą laukti veiksmų
         while True:
-            duomenys = klientoSoketas.recv(4096)
+            duomenys = klientoSoketas.recv(4096).decode('utf-8').strip()
+
             if not duomenys:
-                # gauta tuščia -> nutraukti
+                print("Gauta tuščia komanda. Klientas gal atsijungė?")
                 break
 
-           
-            # Kviečiame tikrink_delspinigius
-            if tikrink_delspinigius(zaidejas):
-                klientoSoketas.sendall(b"Jus bankrutavote (delspinigiai virsijo turimus pinigus)!\n")
-                break
-                
-            if zaidejas.masina_sugedo:
-                klientoSoketas.sendall(b"Jus bankrutavote (delspinigiai virsijo turimus pinigus)!\n")
-                break
-
-            komanda = duomenys.decode('utf-8').strip()
-            if not komanda:
-                # Jeigu vartotojas tiesiog spaudžia Enter,
-                # praleidžiame šį žingsnį (nenutraukiame žaidimo).
-                klientoSoketas.sendall(b"Prasome ivesti komanda, o ne tuscia eilute.\n")
-                continue
-
-                """ Ir toliau rodom meniu
-                visas_meniu = suformuok_meniu(zaidejas)
-                klientoSoketas.sendall(visas_meniu.encode('utf-8'))
-                continue"""
-
-            #komanda = duomenys.decode('utf-8').strip()
-            if komanda == "0":
+            if duomenys == "0":
                 klientoSoketas.sendall(b"Baigiam zaidima...\n")
                 break
 
-            elif komanda == "1":
-                # Gaminti 4 rūšių dešras iš mėsos/pakuočių
+            elif duomenys == "1":
                 paaiskinimas = (
                     "\nKiekvienai dešrai reikalingi žaliaviniai resursai:\n"
                     "  - virtos: 2 kg mėsos, 1 pakuotė.\n"
@@ -442,20 +417,11 @@ def valdykKlienta(klientoSoketas):
                     "Pvz.: '2 1 0 3' (2 virtų, 1 vytinta, 0 karštų, 3 šaltų)\n"
                 )
                 klientoSoketas.sendall(paaiskinimas.encode('utf-8'))
-
-                ats2 = klientoSoketas.recv(4096)
-                if not ats2:
-                    break
-                cmd = ats2.decode('utf-8').strip()
-                gam_result = gaminti_desras(zaidejas, cmd)
+                ats2 = klientoSoketas.recv(4096).decode('utf-8').strip()
+                gam_result = gaminti_desras(zaidejas, ats2)
                 klientoSoketas.sendall(gam_result.encode('utf-8'))
 
-
-
-            elif komanda == "2":
-                # 2 reiškia "Parduotuves" - t.y. pirkti_resursus
-                # bet mums reikia sužinoti, ar pasirinks 1 ar 2 (Ūkininką ar pakuočių parduotuvę).
-                # Taigi paprašome kliento pasirinkimo
+            elif duomenys == "2":
                 klaus = (
                     "Parduotuvių pasirinkimai:\n"
                     "1. Ūkininkas Antanas - Mėsos 10 kg už 10€\n"
@@ -463,54 +429,43 @@ def valdykKlienta(klientoSoketas):
                     "Pasirinkite parduotuvę (1 arba 2):\n"
                 )
                 klientoSoketas.sendall(klaus.encode('utf-8'))
-
-                duomenys2 = klientoSoketas.recv(4096)
-                if not duomenys2:
-                    break
-                parduotuve = duomenys2.decode('utf-8').strip()
-
-                # Dabar kviečiame pirkti_resursus(zaidejas, parduotuve)
+                parduotuve = klientoSoketas.recv(4096).decode('utf-8').strip()
                 ats_pard = pirkti_resursus(zaidejas, parduotuve)
                 klientoSoketas.sendall(ats_pard.encode('utf-8'))
 
-            elif komanda == "3":
-                # Naujas užsakymas (keturių rūšių dešrų)
+            elif duomenys == "3":
                 txt = naujas_uzsakymas(zaidejas)
                 klientoSoketas.sendall(txt.encode('utf-8'))
 
-
-            elif komanda == "4":
-                # Paklausti, kurį užsakymą vykdyti
+            elif duomenys == "4":
                 klientoSoketas.sendall(b"Kuri uzsakyma vykdyti? (1,2,3...)\n")
-                ats4 = klientoSoketas.recv(4096)
-                if not ats4:
-                    break
-                idx_str = ats4.decode('utf-8').strip()
+                ats4 = klientoSoketas.recv(4096).decode('utf-8').strip()
                 try:
-                    idx = int(idx_str) - 1
+                    idx = int(ats4) - 1
                 except ValueError:
                     klientoSoketas.sendall(b"Neteisingas indeksas!\n")
                     continue
-
                 vyk_result = vykdyti_uzsakyma(zaidejas, idx)
                 klientoSoketas.sendall(vyk_result.encode('utf-8'))
-
 
             else:
                 klientoSoketas.sendall(b"Nezinoma komanda!\n")
 
-            # ** Štai čia ** vėl atsiunčiame "visą meniu" atnaujintą
             # Atnaujiname meniu
             visas_meniu = suformuok_meniu(zaidejas)
             klientoSoketas.sendall(visas_meniu.encode('utf-8'))
 
-        # 5. Išsaugome statistiką
+        # 5. Išsaugome statistiką ir pabaigos laiką
+        zaidejas.pabLaikas = datetime.now()
+        print(f"Kliento {zaidejas.vardas} sesija baigėsi. Sesijos pabaiga: {zaidejas.pabLaikas}")
         rasykStatistika(zaidejas)
 
     except Exception as e:
         print("Klaida valdykKlienta:", e)
     finally:
         klientoSoketas.close()
+        print("Ryšys su klientu uždarytas.")
+
 
 ###############################################################################
 
