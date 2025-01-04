@@ -51,28 +51,17 @@ int main() {
         if (strcmp(buferis, "exit") == 0)
             break;
 
+
+
         send(soketas, buferis, strlen(buferis), 0);
         memset(buferis, 0, BUFERIO_DYDIS);
 
-////////////////////////
-////////////////////////
-/*	while (1) {
-   	   char buffer[4096];
- 	   ssize_t n = recv(soketas, buffer, sizeof(buffer) - 1, 0);
- 	   if (n <= 0) break;
-   	   buffer[n] = '\0';
-   	   printf("%s", buffer);
-  	   fflush(stdout);
-}  */
-////////////////////////
-///////////////////////
-	
-	if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
-	   printf("Serveris: %s", buferis);
+        if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
+            printf("Serveris: %s", buferis);
         if (strncmp("PABAIGA", buferis, 7) == 0) 
             break;   
     }
-
+    
     // Uždarome soketą
     close(soketas);
     printf("Seansas baigėsi\n");
