@@ -1,69 +1,81 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <sys/un.h>
+#include <stdio.h>      // Standartinė įvesties ir išvesties biblioteka
+#include <stdlib.h>     // Standartinė biblioteka (pvz., funkcijai exit)
+#include <string.h>     // String manipuliacijos funkcijos
+#include <unistd.h>     // UNIX standartinės funkcijos (pvz., close)
+#include <sys/socket.h> // Soketų programavimui reikalingos funkcijos
+#include <sys/un.h>     // UNIX domain soketų struktūros
 
-#define SOKETO_FAILAS "./zaidimas.sock"
-#define BUFERIO_DYDIS 4096
+// Definuojame konstantas
+#define SOKETO_FAILAS "./zaidimas.sock" // UNIX soketo failo kelias
+#define BUFERIO_DYDIS 4096               // Buferio dydis, skirtas duomenims saugoti
 
+/**
+ * Funkcija klaida - išveda klaidos pranešimą ir baigia programą.
+ * @param pranesimas - Klaidos pranešimas, kurį norite išvesti.
+ */
 void klaida(const char *pranesimas) {
-    perror(pranesimas);
-    exit(EXIT_FAILURE);
+    perror(pranesimas); // Išveda klaidos pranešimą standartinei klaidų srautai
+    exit(EXIT_FAILURE);  // Baigia programą su nesėkmingu statusu
 }
 
 int main() {
-    int soketas;
-    struct sockaddr_un serverio_adresas;
-    char buferis[BUFERIO_DYDIS];
+    int soketas; // Soketo apdorojimo failas
+    struct sockaddr_un serverio_adresas; // Serverio adreso struktūra
+    char buferis[BUFERIO_DYDIS]; // Buferis duomenims saugoti
 
-    // Bandome sukurti Unix soketą
-    if ((soketas = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
-        klaida("Nepavyko sukurti soketo...");
+    // 1. Sukuriame UNIX soketą
+    if ((soketas = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+        klaida("Nepavyko sukurti soketo..."); // Jei soketo kūrimas nepavyksta, išvedame klaidą ir baigiame programą
+    }
 
-    // Nustatome serverio adresą
-    memset(&serverio_adresas, 0, sizeof(serverio_adresas));
-    memset(buferis, 0, BUFERIO_DYDIS);
-    
-    serverio_adresas.sun_family = AF_UNIX;
+    // 2. Nustatome serverio adresą
+    memset(&serverio_adresas, 0, sizeof(serverio_adresas)); // Išvalome serverio_adresas struktūrą
+    memset(buferis, 0, BUFERIO_DYDIS);                     // Išvalome buferį
+
+    serverio_adresas.sun_family = AF_UNIX; // Nustatome adreso šeimą kaip UNIX
+    // Nukopijuojame soketo kelią į serverio_adresą, užtikrinant, kad neviršytume masyvo ribų
     strncpy(serverio_adresas.sun_path, SOKETO_FAILAS, sizeof(serverio_adresas.sun_path) - 1);
 
-    // Bandome prisijungti prie serverio
-    if (connect(soketas, (struct sockaddr *)&serverio_adresas, sizeof(serverio_adresas)) < 0)
-        klaida("Nepavyko prisijungti prie serverio ...");
-
-    printf("Prisijungta prie serverio.\n");
-
-    // Gauname atsaką iš serverio
-    memset(buferis, 0, BUFERIO_DYDIS);
-    if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
-        printf("%s", buferis);
-
-    // Komunikavimo ciklas
-    while (1) {
-        printf(" Atsakymas: ");
-        fgets(buferis, BUFERIO_DYDIS, stdin);
-
-        // Nuvalome \n
-        buferis[strcspn(buferis, "\n")] = '\0';
-        // Jeigu įvedėme "exit"
-        if (strcmp(buferis, "exit") == 0)
-            break;
-
-
-
-        send(soketas, buferis, strlen(buferis), 0);
-        memset(buferis, 0, BUFERIO_DYDIS);
-
-        if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
-            printf("Serveris: %s", buferis);
-        if (strncmp("PABAIGA", buferis, 7) == 0) 
-            break;   
+    // 3. Prisijungiame prie serverio
+    if (connect(soketas, (struct sockaddr *)&serverio_adresas, sizeof(serverio_adresas)) < 0) {
+        klaida("Nepavyko prisijungti prie serverio ..."); // Jei prisijungimas nepavyksta, išvedame klaidą ir baigiame programą
     }
-    
-    // Uždarome soketą
-    close(soketas);
-    printf("Seansas baigėsi\n");
-    return 0;
+
+    printf("Prisijungta prie serverio.\n"); // Informuojame vartotoją, kad prisijungta
+
+    // 4. Gauname pradinį atsakymą iš serverio
+    memset(buferis, 0, BUFERIO_DYDIS); // Išvalome buferį prieš gavimą
+    if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0) { // Gauname duomenis iš serverio
+        printf("%s", buferis); // Išvedame gautą pranešimą
+    }
+
+    // 5. Komunikavimo ciklas - leidžia vartotojui bendrauti su serveriu
+    while (1) {
+        printf(" Atsakymas: "); // Rodo vartotojui, kad gali įvesti atsakymą
+        fgets(buferis, BUFERIO_DYDIS, stdin); // Nuskaitome vartotojo įvestį iš standartinės įvesties
+
+        // 6. Nuvalome naujos eilutės simbolį '\n' iš buferio
+        buferis[strcspn(buferis, "\n")] = '\0'; // Pašaliname naujos eilutės simbolį, jei jis yra
+
+        // 7. Jei vartotojas įveda "exit", nutraukiame ciklą
+        if (strcmp(buferis, "exit") == 0)
+            break; // Nutraukiame ciklą ir tęsiame programos vykdymą po ciklo
+
+        // 8. Siunčiame vartotojo įvestį serveriui per soketą
+        send(soketas, buferis, strlen(buferis), 0);
+        memset(buferis, 0, BUFERIO_DYDIS); // Išvalome buferį prieš kitą įvestį
+
+        // 9. Gauname serverio atsakymą ir jį išvedame
+        if (recv(soketas, buferis, BUFERIO_DYDIS, 0) > 0)
+            printf("Serveris: %s", buferis); // Išvedame serverio atsakymą
+
+        // 10. Patikriname, ar serveris siunčia "PABAIGA" - jei taip, nutraukiame ciklą
+        if (strncmp("PABAIGA", buferis, 7) == 0)
+            break; // Nutraukiame ciklą ir tęsiame programos vykdymą po ciklo
+    }
+
+    // 11. Uždarome soketą ir baigiame programą
+    close(soketas); // Uždarome soketą
+    printf("Seansas baigėsi\n"); // Informuojame vartotoją, kad seansas baigėsi
+    return 0; // Grąžiname sėkmingą statusą
 }
