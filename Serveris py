@@ -4,6 +4,8 @@ import os
 import time
 import math
 import sys, select
+import threading
+from datetime import datetime
 
 SOKETO_FAILAS = "./zaidimas.sock"
 ZAIDIMO_STATISTIKA = "./taskai.dat"
@@ -15,67 +17,16 @@ def rasykStatistika(klientas):
     failas = open(ZAIDIMO_STATISTIKA, 'a')
     failas.write(f'{klientas}\n')
     failas.close()
+    
+def dataLaikas(dt):
+    rez = f'{dt.year}-{dt.month}-{dt.day}, {dt.hour}:{dt.minute}:{dt.second}'
+    return rez
   
 ###############################################################################
-#ANMACIJA
 
-def rodyti_animacija_klientui(klientas):
-    
-    '''Siunčiame animacijos kadrus kas ~0.1 s.
-    Tarp kadru tikriname, ar nėra komandos 'STOP_ANIM' iš kliento.'''
-
-    pavadinimas = "UAB ŠLAPIANKA"
-    plotis = 80
-    aukstis = 20
-    pavadinimo_ilgis = len(pavadinimas)
-    t = 0
-
-    # Padarome socket neblokuojantį (kad recv nestringtų).
-    # Arba galėtume naudoti select() mechanizmą, bet neblokuojantis recv paprasčiau.
-    klientas.setblocking(False)
-
-    try:
-        while True:
-            # 1) Tikriname, ar klientas kažko nesiuntė (pvz. STOP_ANIM)
-            try:
-                data = klientas.recv(4096)
-                if data:
-                    tekstas = data.decode('utf-8').strip()
-                    if tekstas == "STOP_ANIM":
-                        # Sustabdome animaciją
-                        break
-                    # Jei kažkas kito - ignoruojam arba apdorojam
-            except BlockingIOError:
-                # Reiškia - šiuo momentu nėra gautų duomenų.
-                pass
-
-            # 2) Sudarome kadrą su ANSI sekų išvalymu
-            kadras = "\x1b[2J\x1b[H"
-            vertikali_padetis = int((math.sin(t) + 1) * (aukstis // 4))
-            horizontali_padetis = int((t * 2) % (plotis + pavadinimo_ilgis)) - pavadinimo_ilgis
-
-            kadras += "\n" * vertikali_padetis
-            if horizontali_padetis >= 0:
-                kadras += (" " * horizontali_padetis) + pavadinimas + "\n"
-
-            # 3) Siunčiame kadrą
-            klientas.sendall(kadras.encode('utf-8'))
-
-            # Pauzė tarp kadrų
-            time.sleep(0.1)
-            t += 0.2
-
-    except (BrokenPipeError, ConnectionResetError):
-        print("Klientas atjungė ryšį animacijos metu.")
-    finally:
-        # Svarbu: grąžiname socket į blocking režimą, jei norime toliau normaliai priiminėti duomenis
-        klientas.setblocking(True)
-
-'''#ANIMACIJA PABAIGA
-###############################################################################'''
 
 class Klientas:
-    def __init__(self, vardas):
+    def __init__(self, vardas, pradLaikas):
         self.vardas = vardas
         self.pinigai = 50
         self.mesa = 50  
@@ -83,102 +34,118 @@ class Klientas:
         self.uzsakymai = []  
         self.masina_sugedo = False
         self.reali_praejo_laikas = 0 
-
+        self.pradLaikas = pradLaikas
+        self.pabLaikas = None 
+        
+        # The 4 types of sausages we have in *inventory* (starting 0).
+        self.virtos = 0
+        self.vytintos = 0
+        self.karstos = 0
+        self.saltos = 0
+        
+        
     def __str__(self):
-        return f'{self.vardas};{self.pinigai};{self.mesa};{self.pakuotes};{self.uzsakymai};{self.masina_sugedo};{self.reali_praejo_laikas}'
+        return (
+            f"{self.vardas};"
+            f"{self.pinigai};"
+            f"{self.mesa};"
+            f"{self.pakuotes};"
+            f"{self.uzsakymai};"
+            f"{self.masina_sugedo};"
+            f"{self.reali_praejo_laikas};"
+            f"{self.pradLaikas};"
+            f"{self.pabLaikas}"
+        )
 
 class Uzsakymas:
-    def __init__(self, kiekis, pakuotes, laiko_trukme):
-        self.kiekis = kiekis
-        self.pakuotes = pakuotes
-        self.laiko_trukme = laiko_trukme  
+    def __init__(self, virtos=0, vytintos=0, karstos=0, saltos=0, laiko_trukme=1):
+               
+        # Kiekvienos dešros kiekis
+        self.virtos = virtos
+        self.vytintos = vytintos
+        self.karstos = karstos
+        self.saltos = saltos
+        
+        self.laiko_trukme = laiko_trukme  # Paros skaičius
         self.laiko_pradzia = 0  
-        self.pelnas = (kiekis * 2) + (pakuotes * 2)  
         self.delspinigiai = 0  
         self.laiko_pabaiga = 0  
-        self.ivykdytas = False 
-
-##### sita gal kur kitur ikisti
+        self.ivykdytas = False
+        
+        # Pelnas: 2 eurai už kiekvieną dešrą
+        total_count = virtos + vytintos + karstos + saltos
+        self.pelnas = total_count * 2
 
     def nustatyti_laiko_pabaiga(self, laiko_pradzia):
-        self.laiko_pabaiga = laiko_pradzia + self.laiko_trukme * 24 * 60 * 60 
-        #Trukmė sekundėmis
+        # 1 para = 30 s realaus laiko
+        self.laiko_pabaiga = laiko_pradzia + (self.laiko_trukme * 30)
 
     def pridet_delspinigiai(self, realus_praeje_laikas):
         if self.ivykdytas:
-            return     # Jei užsakymas buvo įvykdytas, delspinigiai nepridedami
-
+            return
         if realus_praeje_laikas >= self.laiko_pabaiga:
-            delspinigiai = (realus_praeje_laikas - self.laiko_pabaiga) // 20
-            self.delspinigiai += delspinigiai
-#####
+            velavimas = realus_praeje_laikas - self.laiko_pabaiga
+            if velavimas > 0:
+                # Kiek 5 sekundžių prabėgo nuo laiko pabaigos
+                intervalai = int(velavimas // 5)
+                # Nustatome delspinigius = intervalai * 1 €
+                self.delspinigiai = intervalai * 1
 
     def __str__(self):
-        return f'{self.kiekis};{self.pakuotes};{self.laiko_trukme};{self.laiko_pradzia};{self.pelnas};{self.delspinigiai};{self.laiko_pabaiga};{self.ivykdytas}'
+        return (
+            f"(virtos={self.virtos}, vytintos={self.vytintos}, karštos={self.karstos}, "
+            f"šaltos={self.saltos}, delspinigiai={self.delspinigiai}, ivykdytas={self.ivykdytas})"
+        )
 
 ###############################################################################
-#Man atrodo vietoje 'zaidejas' turi buti 'klientas' bet gal veiks
-
 
 def parodyti_uzsakymus(zaidejas):
-    """Grąžina tekstinę informaciją apie užsakymus."""
-    if zaidejas.uzsakymai:
-        eilutes = []
-        for i, u in enumerate(zaidejas.uzsakymai):
-            likusios_sekundes = max(u.laiko_pabaiga - zaidejas.reali_praejo_laikas, 0)
-            likusios_dienos = likusios_sekundes // (24 * 60 * 60)
-            delspinigiai = u.delspinigiai if not u.ivykdytas else 0
-
-            eilute = (f"{i + 1}. Kiekis: {u.kiekis} kg, Pakuotės: {u.pakuotes}, "
-                      f"Liko: {likusios_dienos} d., Delspinigiai: {delspinigiai}€")
-            eilutes.append(eilute)
-
-        # Surenkame visas eilutes į vieną, su \n tarp jų
-        return "\n".join(eilutes) + "\n"
-    else:
-        return "Šiuo metu nėra užsakymų.\n"
-
-###############################################################################
-
-
-
-def naujas_uzsakymas(zaidejas):
-    kiekis = random.randint(5, 30)  # Užsakymo kiekis (5-30 kg)
-    pakuotes = random.randint(1, 10)  # Užsakymo pakuotės (1-10)
-    laiko_trukme = random.choice([1, 2, 3, 4])  # Laiko trukmė (1-4 paros)
-
-    uzsakymas = Uzsakymas(kiekis, pakuotes, laiko_trukme)
-    uzsakymas.laiko_pradzia = zaidejas.reali_praejo_laikas
-    uzsakymas.nustatyti_laiko_pabaiga(zaidejas.reali_praejo_laikas)
-
-    zaidejas.uzsakymai.append(uzsakymas)
-
-    # Vietoj print() grąžinsime eilutę, kad galėtume išsiųsti klientui
-    return (
-        f"Padarėte naują užsakymą: {kiekis} kg mėsos ir {pakuotes} pakuočių.\n"
-        f"Trukmė: {laiko_trukme} paros\n"
-    )
-
-###############################################################################
-def uzsakymu_sarasas_tekstu(zaidejas):
-    """
-    Sudaro eilutę (ar kelias eilutes) su visais žaidėjo užsakymais.
-    Jei nėra užsakymų, grąžina 'Šiuo metu nėra užsakymų.'.
-    """
+    """Išveda visus užsakymus (kiek kokios dešros, kiek liko dienų, delspinigiai)."""
     if not zaidejas.uzsakymai:
         return "Šiuo metu nėra užsakymų.\n"
-
-    eilutes = []
+    lines = []
     for i, u in enumerate(zaidejas.uzsakymai, start=1):
         likusios_sekundes = max(u.laiko_pabaiga - zaidejas.reali_praejo_laikas, 0)
-        likusios_dienos = likusios_sekundes // (24 * 60 * 60)
-        delspinigiai = u.delspinigiai if not u.ivykdytas else 0
+        likusios_dienos = likusios_sekundes // 30
+        lines.append(
+            f"{i}) virtos: {u.virtos}, vytintos: {u.vytintos}, "
+            f"karštos: {u.karstos}, šaltos: {u.saltos}, "
+            f"Liko: {likusios_dienos} d., delspinigiai: {u.delspinigiai} €"
+            f"\nUž šį užsakymą gausite: {u.pelnas} €\n"
+        )
+    return "\n".join(lines) + "\n"
 
-        eilute = (f"{i}. Kiekis: {u.kiekis} kg, pakuotės: {u.pakuotes}, liko: {likusios_dienos} d., delspinigiai: {delspinigiai}€")
-        eilutes.append(eilute)
-    # Sudedame eilutes į vieną tekstą su \n tarp jų
-    return "\n".join(eilutes) + "\n"
-##############################################################################
+###############################################################################
+
+def naujas_uzsakymas(zaidejas):
+    # vietoj random(5..30) mėsos => random(0..10) virtų, etc.
+    virtos = random.randint(0, 10)
+    vytintos = random.randint(0, 10)
+    karstos = random.randint(0, 10)
+    saltos = random.randint(0, 10)
+    laiko_trukme = random.choice([1,2,3,4])
+
+    u = Uzsakymas(virtos, vytintos, karstos, saltos, laiko_trukme)
+    u.laiko_pradzia = zaidejas.reali_praejo_laikas
+    u.nustatyti_laiko_pabaiga(zaidejas.reali_praejo_laikas)
+
+    zaidejas.uzsakymai.append(u)
+
+    return (
+        f"\nNaujas užsakymas: virtos: {virtos}, vytintos: {vytintos}, karštos: {karstos}, šaltos: {saltos}\n"
+        f"Trukmė: {laiko_trukme} paros\n"
+        f"Už šį užsakymą gausite: {u.pelnas} €\n"
+    )
+
+
+################################################################################
+
+def uzsakymu_sarasas_tekstu(zaidejas):
+    """Naudojame tą pačią logiką kaip parodyti_uzsakymus."""
+    return parodyti_uzsakymus(zaidejas)
+
+###############################################################################
+
 
 def pirkti_resursus(zaidejas, pasirinkimas):
     """
@@ -234,92 +201,103 @@ def pirkti_resursus(zaidejas, pasirinkimas):
     return atsakymas
 
 
-##############################################################################
-
-
+###############################################################################
 def vykdyti_uzsakyma(zaidejas, uzsakymas_index):
     """
-    Grąžina tekstą, kurį serveris persiųs klientui (vietoj print).
+    Norime patikrinti, ar žaidėjas turi pakankamai DEŠRŲ (virtos, vytintos, karštos, šaltos),
+    kad įvykdytų užsakymą. Jei taip, jas atimame, pridedame pelną, šaliname užsakymą iš sąrašo.
     """
-    atsakymas = ""
+    ats = ""
     try:
-        uzsakymas = zaidejas.uzsakymai[uzsakymas_index]
+        u = zaidejas.uzsakymai[uzsakymas_index]
+        # Tikriname, ar žaidėjas turi pakankamai dešrų:
+        if (zaidejas.virtos >= u.virtos and
+            zaidejas.vytintos >= u.vytintos and
+            zaidejas.karstos >= u.karstos and
+            zaidejas.saltos >= u.saltos):
+            
+            zaidejas.virtos -= u.virtos
+            zaidejas.vytintos -= u.vytintos
+            zaidejas.karstos -= u.karstos
+            zaidejas.saltos -= u.saltos
 
-        if zaidejas.mesa >= uzsakymas.kiekis and zaidejas.pakuotes >= uzsakymas.pakuotes:
-            zaidejas.mesa -= uzsakymas.kiekis
-            zaidejas.pakuotes -= uzsakymas.pakuotes
-            zaidejas.pinigai += uzsakymas.pelnas
-            uzsakymas.ivykdytas = True
-            atsakymas += (
-                f"Užsakymas įvykdytas: {uzsakymas.kiekis} kg mėsos, "
-                f"{uzsakymas.pakuotes} pakuočių.\n"
+            zaidejas.pinigai += u.pelnas
+            u.ivykdytas = True
+            ats += (
+                f"Užsakymas įvykdytas (virtos={u.virtos}, vytintos={u.vytintos}, "
+                f"karštos={u.karstos}, šaltos={u.saltos}).\n"
+                f"Gavote {u.pelnas} eur.\n"
+                f"Dėkojame!\n"
             )
-            # Pašaliname užsakymą iš sąrašo
             del zaidejas.uzsakymai[uzsakymas_index]
         else:
-            atsakymas += "Nepakanka resursų užsakymui atlikti.\n"
+            ats += "Nepakanka dešrų atsargų šiam užsakymui!\n"
     except IndexError:
-        atsakymas += "Tokio užsakymo nėra!\n"
+        ats += "Tokio užsakymo nėra!\n"
+    return ats
 
-    return atsakymas
+###############################################################################
 
+# cia issaugoju nauja gamybos sistema, bet poto padaryk, jog atrodytu labiau kaip originali versija
 
-##############################################################################
-def gaminti_mesos_produktus(zaidejas, komanda):
+def gaminti_desras(zaidejas, komanda):
     """
-    komanda - string, pvz. "1 3" (gaminsime Nr.1, 3 vnt)
-    Grąžiname eilutę, kurią serveris vėliau išsiųs klientui.
+    Iš žaliavų (mėsos, pakuočių) gaminame 4 rūšių dešrų.
+    Pvz. komanda '2 1 0 3' -> virtos=2, vytintos=1, karstos=0, saltos=3.
     """
-    dalys = komanda.split()
-    if len(dalys) != 2:
-        return "Neteisingas formatas! Pvz: '1 5' (gaminys 1, 5 vienetų)\n"
-
-    pasirinkimas, kiek_vienetu_str = dalys
-    atsakymas = ""
-    atsakymas += "Mėsos produktų gamyba:\n"
-    atsakymas += "1. 5 kg mėsos dešrelių (reikia 5 kg mėsos ir 1 pakuotės)\n"
-    atsakymas += "2. 10 kg mėsos dešrelių (reikia 10 kg mėsos ir 2 pakuočių)\n"
-    atsakymas += "3. 20 kg mėsos dešrelių (reikia 20 kg mėsos ir 4 pakuočių)\n"
-
-    if pasirinkimas not in ["1", "2", "3"]:
-        atsakymas += "Neteisingas pasirinkimas gaminiui (1, 2, arba 3)!\n"
-        return atsakymas
-
-    try:
-        daugiklis = int(kiek_vienetu_str)
-    except ValueError:
-        atsakymas += "Neteisinga įvestis! Reikia sveiko skaičiaus.\n"
-        return atsakymas
-
-    # Žemėlapiai
-    kiekis_map = {"1": 5, "2": 10, "3": 20}
-    pakuotes_map = {"1": 1, "2": 2, "3": 4}
-
-    kiekis = kiekis_map[pasirinkimas]
-    pakuotes = pakuotes_map[pasirinkimas]
-
-    bendras_kiekis = kiekis * daugiklis
-    bendros_pakuotes = pakuotes * daugiklis
-
-    # Prieš gamindami, tikriname resursus
-    if zaidejas.mesa >= bendras_kiekis and zaidejas.pakuotes >= bendros_pakuotes:
-        zaidejas.mesa -= bendras_kiekis
-        zaidejas.pakuotes -= bendros_pakuotes
-        # Jei turite zaidejas.pagaminimai = [], galima append'inti
-        atsakymas += (
-          f"Pagaminote {bendras_kiekis} kg mėsos dešrelių ({daugiklis} "
-          f"vienetai po {kiekis} kg).\n"
+    parts = komanda.split()
+    if len(parts) != 4:
+        return (
+            "Neteisingas formatas! Pvz: '2 1 0 5', reiškia: \n"
+            " virtos=2, vytintos=1, karštos=0, saltos=5\n"
         )
+    try:
+        virtos = int(parts[0])
+        vytintos = int(parts[1])
+        karstos = int(parts[2])
+        saltos = int(parts[3])
+    except ValueError:
+        return "Neteisinga įvestis! Reikia keturių sveikų skaičių.\n"
+
+    # Kiek mėsos/pakuočių reikia vienai dešrai:
+    # virtos: 2 kg mėsos, 1 pakuotė
+    # vytintos: 3 kg mėsos, 1 pakuotė
+    # karštos: 4 kg mėsos, 2 pakuotės
+    # šaltos: 5 kg mėsos, 2 pakuotės
+    mesa_needed = (
+        virtos * 2 +
+        vytintos * 3 +
+        karstos * 4 +
+        saltos * 5
+    )
+    pak_needed = (
+        virtos * 1 +
+        vytintos * 1 +
+        karstos * 2 +
+        saltos * 2
+    )
+
+    msg = f"Gaminame dešras: virtos={virtos}, vytintos={vytintos}, karštos={karstos}, šaltos={saltos}\n"
+    msg += f"Reikės {mesa_needed} kg mėsos, {pak_needed} pakuočių.\n"
+
+    if zaidejas.mesa >= mesa_needed and zaidejas.pakuotes >= pak_needed:
+        # Užtenka resursų, gaminame
+        zaidejas.mesa -= mesa_needed
+        zaidejas.pakuotes -= pak_needed
+
+        zaidejas.virtos   += virtos
+        zaidejas.vytintos += vytintos
+        zaidejas.karstos  += karstos
+        zaidejas.saltos   += saltos
+
+        msg += "Gamyba pavyko! Dešrų inventorius atnaujintas.\n"
     else:
-        atsakymas += "Nepakanka resursų gamybai!\n"
-
-    return atsakymas
-
+        msg += "Nepakanka žaliavų!\n"
+    return msg
 
 
 ##############################################################################
 # Pagrindinė (vienkartinė) informacija, kurią norime rodyti "non-stop"
-
 
 def suformuok_meniu(zaidejas):
     pranesimas1 = (
@@ -332,18 +310,19 @@ def suformuok_meniu(zaidejas):
         f"      ) ) )                       ) ) )\n"\
         f"   (~~~~~~~~~)                 (~~~~~~~~~)\n"\
         f"    | DEŠRA |                   | DEŠRA |\n"\
-        f"    |       |                   |       |              TAISYKLĖS:\n"\
-        f"    I      _._                  I       _._            1 diena žaidime = 30 sekundžių realiame gyvenime\n"\
-        f"    I    /'   `\\                I     /'   `\\          20sek užsakymo vėlavimas - atimamas 1Eur iš piniginės\n"\
+        f"    |       |                   |       |\n"\
+        f"    I      _._                  I       _._\n"\
+        f"    I    /'   `\\                I     /'   `\\\n"\
         f"    I   |   N   |               I    |   N   |\n"\
         f"    f   |   |~~~~~~~~~~~~~~|    f    |    |~~~~~~~~~~~~~~|\n"\
-        f"  .'    |   ||~~~~~~~~|    |  .'     |    | |~~~~~~~~|   |\n"
+        f"  .'    |   ||~~~~~~~~|    |  .'     |    | |~~~~~~~~|   |\n"\
         f"/'______|___||__###___|____|/'_______|____|_|__###___|___|\n"
         f"\n"
-        f"\n"
         f"Žaidėjo vardas: {zaidejas.vardas}\n"
-        f"BŪSENA:\nPinigai: {zaidejas.pinigai}€, "
+        f"\nBŪSENA:\nPinigai: {zaidejas.pinigai}€, "
         f"Mėsa: {zaidejas.mesa} kg, pakuotės: {zaidejas.pakuotes}.\n"
+        f"DEŠRŲ INVENTORIUS:\n"
+        f"virtos: {zaidejas.virtos}, vytintos: {zaidejas.vytintos}, karštos: {zaidejas.karstos}, šaltos: {zaidejas.saltos}\n"
     )
     uzsakymai_tekstas = "\nUŽSAKYMAI:\n" + uzsakymu_sarasas_tekstu(zaidejas)
     pranesimas2 = (
@@ -354,72 +333,104 @@ def suformuok_meniu(zaidejas):
         f"4. Vykdyti užsakymą\n"
         f"0. Baigti žaidimą\n"
     )
-    
+
     # Surenkame viską į vieną "didžiulį" tekstą
     return pranesimas1 + uzsakymai_tekstas + pranesimas2
 
 ###############################################################################
 
+def laiko_atnaujinimas(zaidejas, interval=1):
+    while not zaidejas.masina_sugedo:
+        time.sleep(interval)
+        zaidejas.reali_praejo_laikas += interval
+        if tikrink_delspinigius(zaidejas):
+            # Siųsti žinutę klientui apie bankrotą
+            # Reikia įgyvendinti signalizavimo mechanizmą
+            zaidejas.masina_sugedo = True
+            break
+
+###############################################################################
+
+def tikrink_delspinigius(zaidejas):
+    """
+    Praeina 'reali_praejo_laikas' sekundžių.
+    Tiems užsakymams, kuriems 'reali_praejo_laikas >= laiko_pabaiga',
+    kas 5 realias sekundes po 'laiko_pabaiga' pridedame delspinigių.
+    Jei delspinigiai > zaidejas.pinigai -> bankrotas (gražiname True ar pan.).
+    """
+    total_delspinigiai = 0  # Pridedame bendrą delspinigių sumą
+    for uzs in zaidejas.uzsakymai:
+        if not uzs.ivykdytas:
+            if zaidejas.reali_praejo_laikas >= uzs.laiko_pabaiga:
+                uzs.pridet_delspinigiai(zaidejas.reali_praejo_laikas)
+                total_delspinigiai += uzs.delspinigiai
+                if uzs.delspinigiai > zaidejas.pinigai:
+                    return True  # Bankrotas
+    return False  # Dar nebankrutavo
+
+###############################################################################
+
+def nustatyti_laiko_pabaiga(self, laiko_pradzia):
+    # laiko_trukme (pvz. 2) => 2 paros => realiai 2*30 = 60 sek
+    self.laiko_pabaiga = laiko_pradzia + (self.laiko_trukme * 30)
+
+
+###############################################################################
+
 def valdykKlienta(klientoSoketas):
     try:
-        # 1. Paklausiame vardo
+        print("Naujas klientas prisijungė.")
+
+        # 1. Siunčiame pasisveikinimo pranešimą
         serverioPranesimas = "Sveiki... Koks Jūsų vardas?\n"
         klientoSoketas.sendall(serverioPranesimas.encode('utf-8'))
 
-        atsakymas = klientoSoketas.recv(4096).decode('utf-8')
+        # 2. Laukiame atsakymo iš kliento
+        atsakymas = klientoSoketas.recv(4096).decode('utf-8').strip()
+
         if not atsakymas:
             raise Exception("Nepavyko gauti atsakymo. Klientas gal atsijungė?")
 
-        vardas = atsakymas.strip()
+        vardas = atsakymas
         zaidejas = Klientas(vardas)
-
-        # 2. Paleisti animaciją
-        #rodyti_animacija_klientui(klientoSoketas)
+        print(f"Kliento vardas nustatytas: {zaidejas.vardas}, sesijos pradžia: {zaidejas.pradLaikas}")
 
         # 3. Pirmą kartą atsiunčiame meniu
         visas_meniu = suformuok_meniu(zaidejas)
         klientoSoketas.sendall(visas_meniu.encode('utf-8'))
 
+        # Pradėkite laiko atnaujinimo thread'ą
+        laiko_thread = threading.Thread(target=laiko_atnaujinimas, args=(zaidejas,))
+        laiko_thread.start()
+
         # 4. Pradedame ciklą laukti veiksmų
         while True:
-            duomenys = klientoSoketas.recv(4096)
+            duomenys = klientoSoketas.recv(4096).decode('utf-8').strip()
+
             if not duomenys:
-                # Klientas atsijungė
+                print("Gauta tuščia komanda. Klientas gal atsijungė?")
                 break
 
-            komanda = duomenys.decode('utf-8').strip()
-            if komanda == "0":
+            if duomenys == "0":
                 klientoSoketas.sendall(b"Baigiam zaidima...\n")
                 break
 
-            elif komanda == "3":
-                # Naujas užsakymas
-                atsakymas_naujas = naujas_uzsakymas(zaidejas)
-                klientoSoketas.sendall(atsakymas_naujas.encode('utf-8'))
-
-            elif komanda == "1":
-                # Paprašome kliento, pvz. "1 2"
-                tekstas = (
-                    "Mėsos produktų gamyba:\n"
-                    "1. 5 kg mėsos dešrelių (5 kg mėsos, 1 pakuotė)\n"
-                    "2. 10 kg mėsos dešrelių (10 kg mėsos, 2 pakuotės)\n"
-                    "3. 20 kg mėsos dešrelių (20 kg mėsos, 4 pakuotės)\n"
-                    "Pvz. '2 3' => gaminys Nr.2, 3 vienetai\n"
+            elif duomenys == "1":
+                paaiskinimas = (
+                    "\nKiekvienai dešrai reikalingi žaliaviniai resursai:\n"
+                    "  - virtos: 2 kg mėsos, 1 pakuotė.\n"
+                    "  - vytintos: 3 kg mėsos, 1 pakuotė.\n"
+                    "  - karštos (karštai rūkytos): 4 kg mėsos, 2 pakuotės.\n"
+                    "  - šaltos (šaltai rūkytos): 5 kg mėsos, 2 pakuotės.\n"
+                    "\nĮveskite 4 sveikus skaičius, atskirtus tarpais: virtos vytintos karštos saltos.\n"
+                    "Pvz.: '2 1 0 3' (2 virtų, 1 vytinta, 0 karštų, 3 šaltų)\n"
                 )
-                klientoSoketas.sendall(tekstas.encode('utf-8'))
+                klientoSoketas.sendall(paaiskinimas.encode('utf-8'))
+                ats2 = klientoSoketas.recv(4096).decode('utf-8').strip()
+                gam_result = gaminti_desras(zaidejas, ats2)
+                klientoSoketas.sendall(gam_result.encode('utf-8'))
 
-                ats = klientoSoketas.recv(4096)
-                if not ats:
-                    break
-                komanda_gamyba = ats.decode('utf-8').strip()
-
-                ats_gamyba = gaminti_mesos_produktus(zaidejas, komanda_gamyba)
-                klientoSoketas.sendall(ats_gamyba.encode('utf-8'))
-
-            elif komanda == "2":
-                # 2 reiškia "Parduotuves" - t.y. pirkti_resursus
-                # bet mums reikia sužinoti, ar pasirinks 1 ar 2 (Ūkininką ar pakuočių parduotuvę).
-                # Taigi paprašome kliento pasirinkimo
+            elif duomenys == "2":
                 klaus = (
                     "Parduotuvių pasirinkimai:\n"
                     "1. Ūkininkas Antanas - Mėsos 10 kg už 10€\n"
@@ -427,56 +438,45 @@ def valdykKlienta(klientoSoketas):
                     "Pasirinkite parduotuvę (1 arba 2):\n"
                 )
                 klientoSoketas.sendall(klaus.encode('utf-8'))
-
-                duomenys2 = klientoSoketas.recv(4096)
-                if not duomenys2:
-                    break
-                parduotuve = duomenys2.decode('utf-8').strip()
-
-                # Dabar kviečiame pirkti_resursus(zaidejas, parduotuve)
+                parduotuve = klientoSoketas.recv(4096).decode('utf-8').strip()
                 ats_pard = pirkti_resursus(zaidejas, parduotuve)
-                klientoSoketas.sendall(ats_pard.encode('utf-8'))      
+                klientoSoketas.sendall(ats_pard.encode('utf-8'))
 
-            elif komanda == "4":
-                # Serveris klausia, kokį užsakymą (pvz. numeris -1)
-                klausimas = "Įveskite užsakymo numerį, kurį norite vykdyti (pvz.: 1)?\n"
-                klientoSoketas.sendall(klausimas.encode('utf-8'))
+            elif duomenys == "3":
+                txt = naujas_uzsakymas(zaidejas)
+                klientoSoketas.sendall(txt.encode('utf-8'))
 
-                ats = klientoSoketas.recv(4096)
-                if not ats:
-                    break
-                uzsak_idx_str = ats.decode('utf-8').strip()
-
-                # Konvertuojam į int, bet atminkim, kad serverio sąrašo indeksas yra 0-based,
-                # o klientas dažnai veda 1-based. Todėl atimtume 1, kad gautume teisingą index.
+            elif duomenys == "4":
+                klientoSoketas.sendall(b"Kuri uzsakyma vykdyti? (1,2,3...)\n")
+                ats4 = klientoSoketas.recv(4096).decode('utf-8').strip()
                 try:
-                    uzsak_idx = int(uzsak_idx_str) - 1
+                    idx = int(ats4) - 1
                 except ValueError:
-                    klientoSoketas.sendall(b"Neteisingas uzsakymo indeksas!\n")
+                    klientoSoketas.sendall(b"Neteisingas indeksas!\n")
                     continue
-
-                # Vykdome
-                ats_vykdymas = vykdyti_uzsakyma(zaidejas, uzsak_idx)
-                klientoSoketas.sendall(ats_vykdymas.encode('utf-8'))       
+                vyk_result = vykdyti_uzsakyma(zaidejas, idx)
+                klientoSoketas.sendall(vyk_result.encode('utf-8'))
 
             else:
                 klientoSoketas.sendall(b"Nezinoma komanda!\n")
 
-            # ** Štai čia ** vėl atsiunčiame "visą meniu" atnaujintą
+            # Atnaujiname meniu
             visas_meniu = suformuok_meniu(zaidejas)
             klientoSoketas.sendall(visas_meniu.encode('utf-8'))
 
-        # 5. Išsaugome statistiką
+        # 5. Išsaugome statistiką ir pabaigos laiką
+        zaidejas.pabLaikas = datetime.now()
+        print(f"Kliento {zaidejas.vardas} sesija baigėsi. Sesijos pabaiga: {zaidejas.pabLaikas}")
         rasykStatistika(zaidejas)
 
     except Exception as e:
         print("Klaida valdykKlienta:", e)
     finally:
         klientoSoketas.close()
+        print("Ryšys su klientu uždarytas.")
 
 
 ###############################################################################
-
 
 
 def startuokServeri():
@@ -485,7 +485,7 @@ def startuokServeri():
 
     if not os.path.exists(ZAIDIMO_STATISTIKA):
         failas = open(ZAIDIMO_STATISTIKA, 'w')
-        failas.write('Vardas;lygis;taskai;Testo pradžios laikas;Testo baigimo laikas\n')      
+        failas.write('Vardas;lygis;taskai;Testo pradžios laikas;Testo baigimo laikas\n')
         failas.close()
 
     serverioSoketas = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
