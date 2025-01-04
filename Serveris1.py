@@ -16,11 +16,11 @@ def rasykStatistika(klientas):
     failas = open(ZAIDIMO_STATISTIKA, 'a')
     failas.write(f'{klientas}\n')
     failas.close()
-
-
+    
 def dataLaikas(dt):
     rez = f'{dt.year}-{dt.month}-{dt.day}, {dt.hour}:{dt.minute}:{dt.second}'
     return rez
+  
 ###############################################################################
 
 
@@ -33,8 +33,6 @@ class Klientas:
         self.uzsakymai = []  
         self.masina_sugedo = False
         self.reali_praejo_laikas = 0 
-        self.pradLaikas = pradLaikas
-        self.pabLaikas = None
         
         # The 4 types of sausages we have in *inventory* (starting 0).
         self.virtos = 0
@@ -52,8 +50,6 @@ class Klientas:
             f"{self.uzsakymai};"
             f"{self.masina_sugedo};"
             f"{self.reali_praejo_laikas}"
-            f{self.pradLaikas};"
-            f{self.pabLaikas}"
         )
 
 class Uzsakymas:
